@@ -1,0 +1,395 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 4fcf26b..ce2ef5f 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -682,7 +682,6 @@ dependencies = [
+ [[package]]
+ name = "backup-shard"
+ version = "0.3.0"
+-source = "git+https://github.com/Foundation-Devices/foundation-api?tag=5.7.0#4aca6373b4766d73824b1ec9fc40aade4f81f5a9"
+ dependencies = [
+  "dcbor",
+  "rkyv",
+@@ -1434,7 +1433,6 @@ dependencies = [
+ [[package]]
+ name = "btp"
+ version = "0.1.0"
+-source = "git+https://github.com/Foundation-Devices/foundation-api?tag=5.7.0#4aca6373b4766d73824b1ec9fc40aade4f81f5a9"
+ dependencies = [
+  "bytemuck",
+  "consts 2.0.0 (git+https://github.com/Foundation-Devices/prime-ble-firmware.git)",
+@@ -3805,7 +3803,6 @@ dependencies = [
+ [[package]]
+ name = "foundation-api"
+ version = "2.0.0"
+-source = "git+https://github.com/Foundation-Devices/foundation-api?tag=5.7.0#4aca6373b4766d73824b1ec9fc40aade4f81f5a9"
+ dependencies = [
+  "bc-components",
+  "bc-envelope",
+@@ -4845,6 +4842,28 @@ dependencies = [
+  "xous-api-log",
+ ]
+ 
++[[package]]
++name = "gui-app-tether-wdk"
++version = "0.1.0"
++dependencies = [
++ "anyhow",
++ "bitcoin 0.32.7",
++ "bt",
++ "fs",
++ "hex",
++ "log 0.4.27",
++ "quantum-link",
++ "security",
++ "serde",
++ "serde_json",
++ "server",
++ "sha3",
++ "slint-keyos-platform",
++ "slint-keyos-platform-build",
++ "xous-api-log",
++ "zeroize",
++]
++
+ [[package]]
+ name = "gui-app-update-test"
+ version = "0.1.0"
+@@ -9152,7 +9171,6 @@ dependencies = [
+ [[package]]
+ name = "quantum-link-macros"
+ version = "0.1.0"
+-source = "git+https://github.com/Foundation-Devices/foundation-api?tag=5.7.0#4aca6373b4766d73824b1ec9fc40aade4f81f5a9"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+diff --git a/Cargo.toml b/Cargo.toml
+index 99cc21a..42533ed 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -40,6 +40,7 @@ members = [
+     "apps/gui-app-seed-vault",
+     "apps/gui-app-switcher",
+     "apps/gui-app-system-actions",
++    "apps/gui-app-tether-wdk",
+     "apps/simulator",
+     "apps/simulator-cli",
+     "boot/charge-boot",
+@@ -273,11 +274,11 @@ thiserror = "2.0"
+ rfal = { version = "4.0.0", git = "https://github.com/Foundation-Devices/rfal-sys", rev = "1a5ba4ee2fd47b41f1788ae2068d9f4a2602b892" }
+ st25r95 = "0.4"
+ 
+-backup-shard = { git = "https://github.com/Foundation-Devices/foundation-api", tag = "5.7.0", features = [
++backup-shard = { path = "../foundation-api/backup-shard", features = [
+     "keyos",
+ ] }
+-btp = { git = "https://github.com/Foundation-Devices/foundation-api", tag = "5.7.0" }
+-foundation-api = { git = "https://github.com/Foundation-Devices/foundation-api", tag = "5.7.0", features = [
++btp = { path = "../foundation-api/btp" }
++foundation-api = { path = "../foundation-api/api", features = [
+     "keyos",
+ ] }
+ ngwallet = { git = "https://github.com/Foundation-Devices/ngwallet", tag = "3.4.0", features = [
+diff --git a/api/quantum-link/manifest.toml b/api/quantum-link/manifest.toml
+index 3fd7a7b..bf105a2 100644
+--- a/api/quantum-link/manifest.toml
++++ b/api/quantum-link/manifest.toml
+@@ -35,3 +35,9 @@ SendPrimeMagicBackupEnabled = { id = 42, type = "blockingArchive" }
+ SubscribeConnectionStatus = { id = 43, type = "scalarEvent" }
+ EnvoyTimezone = { id = 44, type = "blockingArchive" }
+ SendPrimeFiatPreference = { id = 45, type = "blockingArchive" }
++SubscribeWdkEvmAccountRequest = { id = 47, type = "archiveEvent" }
++SubscribeWdkEvmSignTransactionRequest = { id = 48, type = "archiveEvent" }
++SubscribeWdkRequestCancelled = { id = 49, type = "archiveEvent" }
++SendWdkEvmAccountResponse = { id = 50, type = "blockingArchive" }
++SendWdkEvmSignTransactionResponse = { id = 51, type = "blockingArchive" }
++SendWdkRequestRejected = { id = 52, type = "blockingArchive" }
+diff --git a/api/quantum-link/src/messages.rs b/api/quantum-link/src/messages.rs
+index c16b2bc..e1fb62b 100644
+--- a/api/quantum-link/src/messages.rs
++++ b/api/quantum-link/src/messages.rs
+@@ -10,6 +10,10 @@ use foundation_api::bitcoin::{AccountUpdate, SignPsbt};
+ use foundation_api::firmware::{FirmwareFetchEvent, FirmwareInstallEvent, FirmwareUpdateAvailable};
+ use foundation_api::fx::{ExchangeRate, ExchangeRateHistory};
+ use foundation_api::status::{EnvoyStatus, TimezoneResponse};
++use foundation_api::wdk::{
++    WdkEvmAccountRequest, WdkEvmAccountResponse, WdkEvmSignTransactionRequest, WdkEvmSignTransactionResponse,
++    WdkRequestCancelled, WdkRequestRejected,
++};
+ 
+ use crate::{PairingEvent, SecurityCheckState, SendMessageError};
+ 
+@@ -125,6 +129,24 @@ pub struct SendPrimeFiatPreference {
+ #[response(Result<TimezoneResponse, SendMessageError>)]
+ pub struct EnvoyTimezone;
+ 
++#[derive(Debug, Clone, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[response(Result<(), SendMessageError>)]
++pub struct SendWdkEvmAccountResponse {
++    pub response: WdkEvmAccountResponse,
++}
++
++#[derive(Debug, Clone, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[response(Result<(), SendMessageError>)]
++pub struct SendWdkEvmSignTransactionResponse {
++    pub response: WdkEvmSignTransactionResponse,
++}
++
++#[derive(Debug, Clone, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[response(Result<(), SendMessageError>)]
++pub struct SendWdkRequestRejected {
++    pub response: WdkRequestRejected,
++}
++
+ //
+ // Subscriptions
+ //
+@@ -176,3 +198,15 @@ pub struct SubscribeRestoreMagicBackup;
+ #[derive(Debug, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+ #[event(crate::ConnectionStatus)]
+ pub struct SubscribeConnectionStatus;
++
++#[derive(Debug, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[event(WdkEvmAccountRequest)]
++pub struct SubscribeWdkEvmAccountRequest;
++
++#[derive(Debug, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[event(WdkEvmSignTransactionRequest)]
++pub struct SubscribeWdkEvmSignTransactionRequest;
++
++#[derive(Debug, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[event(WdkRequestCancelled)]
++pub struct SubscribeWdkRequestCancelled;
+diff --git a/localizer.json b/localizer.json
+index 029e372..d8adb8b 100644
+--- a/localizer.json
++++ b/localizer.json
+@@ -56,6 +56,11 @@
+       "path": "apps/gui-app-switcher",
+       "include": []
+     },
++    {
++      "name": "tetherwdk",
++      "path": "apps/gui-app-tether-wdk",
++      "include": []
++    },
+     {
+       "name": "vault",
+       "path": "apps/gui-app-seed-vault",
+diff --git a/os/gui-app-launcher/src/main.rs b/os/gui-app-launcher/src/main.rs
+index 697f782..cd28e8f 100644
+--- a/os/gui-app-launcher/src/main.rs
++++ b/os/gui-app-launcher/src/main.rs
+@@ -168,6 +168,7 @@ fn app_main(cx: AppContext, ui: AppWindow) {
+     #[cfg(not(feature = "production"))]
+     {
+         let hidden_apps = vec![
++            HiddenApp { label: "Tether WDK".into(), app_id: "0x7465746865722d77646b2d7072696d65".into() },
+             HiddenApp { label: "System Actions".into(), app_id: "0x6775692d6170702d73797374656d2d61".into() },
+             HiddenApp { label: "Recovery".into(), app_id: "0x6775692d6170702d7265636f76657279".into() },
+             HiddenApp { label: "Onboarding".into(), app_id: "0xdac5321775d449c11bc9c90f38067f8f".into() },
+diff --git a/os/quantum-link/src/main.rs b/os/quantum-link/src/main.rs
+index 4a4a289..1e2ddd1 100644
+--- a/os/quantum-link/src/main.rs
++++ b/os/quantum-link/src/main.rs
+@@ -26,11 +26,12 @@ use foundation_api::{
+     fx::{ExchangeRate, ExchangeRateHistory, PrimeFiatPreference},
+     message::{EnvoyMessage, PassportMessage, QuantumLinkMessage, PROTOCOL_VERSION},
+     onboarding::OnboardingState,
+-    pairing::{PairingRequest, UnpairingRequest},
++    pairing::{PairingRequest, UnpairingRequest, UnpairingResponse},
+     passport::PassportColor,
+     quantum_link::{ARIDCache, QlError, QuantumLink, ReplayCheck, EXPIRATION_DURATION},
+     scv::{ChallengeResponseResult, SecurityCheck},
+     status::{DeviceNameUpdate, DeviceStatus, EnvoyStatus, TimezoneRequest},
++    wdk::{WdkEvmAccountRequest, WdkEvmSignTransactionRequest, WdkRequestCancelled},
+ };
+ use gstp::{SealedEvent, SealedEventBehavior};
+ use log::debug;
+@@ -465,7 +466,30 @@ impl QuantumLinkServer {
+                     request.respond(Ok(response));
+                 }
+             }
++            QuantumLinkMessage::UnpairingRequest(_) => {
++                // An authenticated companion may request a clean two-sided
++                // unpair. Queue the acknowledgement while the recipient XID
++                // is still available, then remove the persisted pairing.
++                self.send(
++                    QuantumLinkMessage::UnpairingResponse(UnpairingResponse { success: true }),
++                    SendOutcome::Ignore,
++                )
++                .ok();
++                self.state.guard().paired_device = None;
++                self.last_received_name = None;
++                self.set_heartbeat_state(|heartbeat| *heartbeat = HeartbeatState::DEAD);
++                self.message_subscribers.pairing_event.send_nowait(&PairingEvent::Disconnected);
++            }
+             QuantumLinkMessage::UnpairingResponse(_) => {}
++            QuantumLinkMessage::WdkEvmAccountRequest(request) => {
++                self.message_subscribers.wdk_evm_account_request.send_nowait(&request);
++            }
++            QuantumLinkMessage::WdkEvmSignTransactionRequest(request) => {
++                self.message_subscribers.wdk_evm_sign_transaction_request.send_nowait(&request);
++            }
++            QuantumLinkMessage::WdkRequestCancelled(request) => {
++                self.message_subscribers.wdk_request_cancelled.send_nowait(&request);
++            }
+ 
+             QuantumLinkMessage::DeviceStatus(_)
+             | QuantumLinkMessage::PairingResponse(_)
+@@ -483,13 +507,18 @@ impl QuantumLinkServer {
+             | QuantumLinkMessage::PrimeMagicBackupEnabled(_)
+             | QuantumLinkMessage::PrimeFiatPreference(_)
+             | QuantumLinkMessage::PrimeMagicBackupStatusRequest(_)
+-            | QuantumLinkMessage::UnpairingRequest(_)
+             | QuantumLinkMessage::MagicBackupRequestV2(_)
+             | QuantumLinkMessage::MagicBackupResponseV2(_)
+-            | QuantumLinkMessage::TimezoneRequest(_) => {
++            | QuantumLinkMessage::TimezoneRequest(_)
++            | QuantumLinkMessage::WdkEvmAccountResponse(_)
++            | QuantumLinkMessage::WdkEvmSignTransactionResponse(_)
++            | QuantumLinkMessage::WdkRequestRejected(_) => {
+                 log::warn!("received spurious event message");
+                 log::debug!("{msg:?}");
+             }
++            _ => {
++                log::warn!("received an unsupported application message");
++            }
+         }
+     }
+ 
+@@ -751,6 +780,87 @@ impl server::ScalarEventSubscriptionHandler<SubscribeConnectionStatus> for Quant
+     }
+ }
+ 
++impl server::ArchiveEventSubscriptionHandler<SubscribeWdkEvmAccountRequest> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        _msg: SubscribeWdkEvmAccountRequest,
++        subscriber: ArchiveEventSubscriber<WdkEvmAccountRequest>,
++        _context: &mut ServerContext<Self>,
++    ) -> Result<(), server::Infallible> {
++        self.message_subscribers.wdk_evm_account_request.push(subscriber);
++        Ok(())
++    }
++}
++
++impl server::ArchiveEventSubscriptionHandler<SubscribeWdkEvmSignTransactionRequest> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        _msg: SubscribeWdkEvmSignTransactionRequest,
++        subscriber: ArchiveEventSubscriber<WdkEvmSignTransactionRequest>,
++        _context: &mut ServerContext<Self>,
++    ) -> Result<(), server::Infallible> {
++        self.message_subscribers.wdk_evm_sign_transaction_request.push(subscriber);
++        Ok(())
++    }
++}
++
++impl server::ArchiveEventSubscriptionHandler<SubscribeWdkRequestCancelled> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        _msg: SubscribeWdkRequestCancelled,
++        subscriber: ArchiveEventSubscriber<WdkRequestCancelled>,
++        _context: &mut ServerContext<Self>,
++    ) -> Result<(), server::Infallible> {
++        self.message_subscribers.wdk_request_cancelled.push(subscriber);
++        Ok(())
++    }
++}
++
++impl server::BlockingArchiveAsyncHandler<SendWdkEvmAccountResponse> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        request: ArchiveRequest<SendWdkEvmAccountResponse>,
++        _context: &mut ServerContext<Self>,
++    ) {
++        let message = QuantumLinkMessage::WdkEvmAccountResponse(request.message.response.clone());
++        self.send(message, SendOutcome::Respond(request.response)).ok();
++    }
++
++    fn default_response() -> <SendWdkEvmAccountResponse as server::BlockingArchive>::Response {
++        Err(SendMessageError::Cancelled)
++    }
++}
++
++impl server::BlockingArchiveAsyncHandler<SendWdkEvmSignTransactionResponse> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        request: ArchiveRequest<SendWdkEvmSignTransactionResponse>,
++        _context: &mut ServerContext<Self>,
++    ) {
++        let message = QuantumLinkMessage::WdkEvmSignTransactionResponse(request.message.response.clone());
++        self.send(message, SendOutcome::Respond(request.response)).ok();
++    }
++
++    fn default_response() -> <SendWdkEvmSignTransactionResponse as server::BlockingArchive>::Response {
++        Err(SendMessageError::Cancelled)
++    }
++}
++
++impl server::BlockingArchiveAsyncHandler<SendWdkRequestRejected> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        request: ArchiveRequest<SendWdkRequestRejected>,
++        _context: &mut ServerContext<Self>,
++    ) {
++        let message = QuantumLinkMessage::WdkRequestRejected(request.message.response.clone());
++        self.send(message, SendOutcome::Respond(request.response)).ok();
++    }
++
++    fn default_response() -> <SendWdkRequestRejected as server::BlockingArchive>::Response {
++        Err(SendMessageError::Cancelled)
++    }
++}
++
+ impl server::BlockingArchiveAsyncHandler<SendAccountUpdate> for QuantumLinkServer {
+     fn handle(&mut self, request: ArchiveRequest<SendAccountUpdate>, _context: &mut ServerContext<Self>) {
+         let update = &request.message;
+@@ -1381,5 +1491,26 @@ fn log_message(prefix: &str, msg: &QuantumLinkMessage) {
+         QuantumLinkMessage::PrimeFiatPreference(_) => {
+             log::info!("{prefix} PrimeFiatPreference")
+         }
++        QuantumLinkMessage::WdkEvmAccountRequest(_) => {
++            log::info!("{prefix} WdkEvmAccountRequest")
++        }
++        QuantumLinkMessage::WdkEvmAccountResponse(_) => {
++            log::info!("{prefix} WdkEvmAccountResponse")
++        }
++        QuantumLinkMessage::WdkEvmSignTransactionRequest(_) => {
++            log::info!("{prefix} WdkEvmSignTransactionRequest")
++        }
++        QuantumLinkMessage::WdkEvmSignTransactionResponse(_) => {
++            log::info!("{prefix} WdkEvmSignTransactionResponse")
++        }
++        QuantumLinkMessage::WdkRequestRejected(_) => {
++            log::info!("{prefix} WdkRequestRejected")
++        }
++        QuantumLinkMessage::WdkRequestCancelled(_) => {
++            log::info!("{prefix} WdkRequestCancelled")
++        }
++        _ => {
++            log::info!("{prefix} UnsupportedApplicationMessage")
++        }
+     }
+ }
+diff --git a/os/quantum-link/src/subscriptions.rs b/os/quantum-link/src/subscriptions.rs
+index 52a2278..cb078da 100644
+--- a/os/quantum-link/src/subscriptions.rs
++++ b/os/quantum-link/src/subscriptions.rs
+@@ -7,6 +7,7 @@ use foundation_api::bitcoin::{AccountUpdate, SignPsbt};
+ use foundation_api::firmware::FirmwareFetchEvent;
+ use foundation_api::fx::{ExchangeRate, ExchangeRateHistory};
+ use foundation_api::status::EnvoyStatus;
++use foundation_api::wdk::{WdkEvmAccountRequest, WdkEvmSignTransactionRequest, WdkRequestCancelled};
+ use quantum_link::{messages::*, ConnectionStatus, PairingEvent, SecurityCheckState};
+ use server::{ArchiveSubList, ScalarSubList};
+ 
+@@ -28,4 +29,7 @@ pub struct MessageSubscribers {
+     pub restore_magic_backup: ArchiveSubList<RestoreMagicBackupEvent>,
+ 
+     pub connection_status: ScalarSubList<ConnectionStatus>,
++    pub wdk_evm_account_request: ArchiveSubList<WdkEvmAccountRequest>,
++    pub wdk_evm_sign_transaction_request: ArchiveSubList<WdkEvmSignTransactionRequest>,
++    pub wdk_request_cancelled: ArchiveSubList<WdkRequestCancelled>,
+ }

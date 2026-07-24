@@ -1,0 +1,14 @@
+diff --git a/os/gui-server/src/handlers/navigation.rs b/os/gui-server/src/handlers/navigation.rs
+index 81262c650..a603aa8da 100644
+--- a/os/gui-server/src/handlers/navigation.rs
++++ b/os/gui-server/src/handlers/navigation.rs
+@@ -90,5 +90,9 @@ impl ScalarHandler<LoginSuccess> for Gui {
+         }
+ 
+         self.unlock();
++        // PIN entry can outlive the short lock-screen LCD timeout. Reset the
++        // timer after changing the lock state so the next callback uses the
++        // unlocked timeout instead of immediately locking the device again.
++        self.reset_auto_lock();
+     }
+ }

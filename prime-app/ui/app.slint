@@ -1,0 +1,1708 @@
+// SPDX-FileCopyrightText: 2026 Foundation Devices, Inc. <hello@foundation.xyz>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import {
+    AnimatedQrCode, BasePage, BaseWindow, Button, ButtonSection, Icon, QrCodeCard,
+    Qrcode, TimerCircularProgress
+} from "@ui/widgets.slint";
+import { CurrentTheme, Images, Importance, Palettes, UISize, Utils } from "@ui/theme.slint";
+import { TR2, TrId } from "./gen/tr.slint";
+import { TR } from "@ui/i18n/i18n.slint";
+
+export { CurrentTheme, Images, Palettes, TR, Utils }
+export * from "gen/exports.slint";
+
+export enum PageId {
+    welcome,
+    wallet-choice,
+    recovery,
+    wallet-creating,
+    wallet-ready,
+    pairing,
+    home,
+    address,
+    about,
+    disconnect,
+    review,
+    result,
+    error,
+}
+
+export global State {
+    in-out property <PageId> page: PageId.welcome;
+    in-out property <bool> paired: false;
+    in-out property <bool> bt-connected: false;
+    in-out property <bool> companion-connected: false;
+    in-out property <bool> disconnecting: false;
+    in-out property <bool> wallet-recovered: false;
+    in-out property <string> pairing-qr;
+    in-out property <[string]> pairing-xid-parts;
+    in-out property <string> address;
+    in-out property <string> address-short;
+    in-out property <string> address-line-one;
+    in-out property <string> address-line-two;
+    in-out property <string> asset;
+    in-out property <string> amount;
+    in-out property <string> recipient;
+    in-out property <string> recipient-line-one;
+    in-out property <string> recipient-line-two;
+    in-out property <string> maximum-fee;
+    in-out property <string> error-message;
+}
+
+export global Callbacks {
+    callback welcome-continue();
+    callback choose-create();
+    callback choose-recover();
+    callback recovery-back();
+    callback recovery-continue();
+    callback wallet-ready-continue();
+    callback pairing-back();
+    callback show-about();
+    callback close-about();
+    callback request-disconnect();
+    callback cancel-disconnect();
+    callback confirm-disconnect();
+    callback approve();
+    callback reject();
+    callback done();
+}
+
+global Brand {
+    out property <brush> green: #f2f1ef;
+    out property <brush> green-bright: #f2f1ef;
+    out property <brush> green-dark: #202122;
+    out property <brush> background: #030303;
+    out property <brush> surface: #0c0c0c;
+    out property <brush> card: #1a1a1a;
+    out property <brush> card-raised: #202122;
+    out property <brush> border: #3a3a3a;
+    out property <brush> text: #f2f1ef;
+    out property <brush> muted: #aaa9a7;
+    out property <brush> danger: #e85a55;
+    out property <brush> danger-dark: #2b1111;
+    out property <brush> warning: #c7a65c;
+}
+
+component Wordmark inherits Rectangle {
+    width: 197px;
+    height: 24px;
+    background: transparent;
+    Image {
+        source: @image-url("../assets/tether-wallet-wordmark.png");
+        width: parent.width;
+        height: parent.height;
+        image-fit: contain;
+    }
+}
+
+component Header inherits Rectangle {
+    in property <bool> show-back: false;
+    in property <bool> show-close: false;
+    callback back;
+    callback close;
+    height: 72px;
+    background: Brand.background;
+
+    Wordmark {
+        x: (parent.width - self.width) / 2;
+        y: 24px;
+    }
+    if show-back: Rectangle {
+        x: 20px;
+        y: 12px;
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        background: Brand.card;
+        Icon {
+            name: "chevron-left";
+            size: 28px;
+            color: Brand.text;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+        }
+        TouchArea { clicked => { root.back(); } }
+    }
+    if show-close: Rectangle {
+        x: parent.width - 68px;
+        y: 12px;
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        background: Brand.card;
+        Text {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            text: "×";
+            color: Brand.text;
+            font-size: 34px;
+            font-weight: 500;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        TouchArea { clicked => { root.close(); } }
+    }
+}
+
+component HomeHeader inherits Rectangle {
+    callback menu;
+    height: 72px;
+    background: Brand.background;
+
+    Wordmark {
+        x: 22px;
+        y: 24px;
+    }
+    Rectangle {
+        x: parent.width - 94px;
+        y: 27px;
+        width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        background: Brand.card;
+        border-width: 1px;
+        border-color: Brand.border;
+        Rectangle {
+            x: 4px;
+            y: 4px;
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: State.companion-connected ? #35d07f : Brand.danger;
+        }
+    }
+    Rectangle {
+        x: parent.width - 68px;
+        y: 12px;
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        background: Brand.card;
+        border-width: 1px;
+        border-color: Brand.border;
+        Icon {
+            name: "ellipsis";
+            size: 27px;
+            color: Brand.text;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+        }
+        TouchArea { clicked => { root.menu(); } }
+    }
+}
+
+component PrimaryAction inherits Rectangle {
+    in property <string> label;
+    in property <bool> destructive: false;
+    in property <bool> busy: false;
+    callback clicked;
+    height: 60px;
+    border-radius: 12px;
+    background: destructive ? Brand.danger : Brand.background;
+    border-width: 1px;
+    border-color: destructive ? Brand.danger : Brand.text;
+
+    Text {
+        text: root.busy ? TR2.lookup(TrId.CommonWorking) : root.label;
+        color: Brand.text;
+        font-size: 21px;
+        font-weight: 750;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    TouchArea {
+        enabled: !root.busy;
+        clicked => { root.clicked(); }
+    }
+}
+
+component SecondaryAction inherits Rectangle {
+    in property <string> label;
+    in property <bool> destructive: false;
+    callback clicked;
+    height: 58px;
+    border-radius: 12px;
+    background: root.destructive ? Brand.danger-dark : Brand.background;
+    border-width: 1px;
+    border-color: root.destructive ? Brand.danger : Brand.border;
+
+    Text {
+        text: root.label;
+        color: root.destructive ? Brand.danger : Brand.text;
+        font-size: 19px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    TouchArea { clicked => { root.clicked(); } }
+}
+
+component NetworkPill inherits Rectangle {
+    width: 154px;
+    height: 44px;
+    border-radius: 22px;
+    background: Brand.card;
+    border-width: 1px;
+    border-color: Brand.border;
+
+    Text {
+        width: parent.width;
+        height: parent.height;
+        text: TR2.lookup(TrId.HomeNetworkBadge);
+        color: Brand.text;
+        font-size: 14px;
+        font-weight: 750;
+        letter-spacing: 0.8px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component ConnectionPill inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    width: 320px;
+    height: 54px;
+    border-radius: 27px;
+    background: active ? Brand.card-raised : Brand.card;
+    border-width: 1px;
+    border-color: active ? Brand.text : Brand.border;
+
+    Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.text;
+        color: active ? Brand.text : Brand.muted;
+        font-size: 19px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component Eyebrow inherits Text {
+    color: Brand.text;
+    font-size: 16px;
+    font-weight: 750;
+    letter-spacing: 1.5px;
+}
+
+component PageTitle inherits Text {
+    color: Brand.text;
+    font-size: 36px;
+    font-weight: 780;
+    wrap: word-wrap;
+}
+
+component BodyCopy inherits Text {
+    color: Brand.muted;
+    font-size: 20px;
+    font-weight: 450;
+    wrap: word-wrap;
+}
+
+component FeatureRow inherits Rectangle {
+    in property <string> marker;
+    in property <string> title;
+    in property <string> text;
+    height: 94px;
+    border-radius: 18px;
+    background: Brand.background;
+    border-width: 1px;
+    border-color: Brand.border;
+
+    Rectangle {
+        x: 16px;
+        y: (parent.height - self.height) / 2;
+        width: 46px;
+        height: 46px;
+        border-radius: 23px;
+        background: Brand.card-raised;
+        Text {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            text: root.marker;
+            color: Brand.text;
+            font-size: 21px;
+            font-weight: 780;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    Text {
+        x: 76px;
+        y: 12px;
+        width: parent.width - 92px;
+        height: 28px;
+        text: root.title;
+        color: Brand.text;
+        font-size: 21px;
+        font-weight: 720;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 76px;
+        y: 42px;
+        width: parent.width - 92px;
+        height: 44px;
+        text: root.text;
+        color: Brand.muted;
+        font-size: 18px;
+        wrap: word-wrap;
+        vertical-alignment: top;
+    }
+}
+
+component ChoiceCard inherits Rectangle {
+    in property <string> marker;
+    in property <string> title;
+    in property <string> text;
+    in property <string> badge;
+    callback clicked;
+    height: 176px;
+    border-radius: 22px;
+    background: Brand.background;
+    border-width: 1px;
+    border-color: Brand.border;
+
+    Rectangle {
+        x: 18px;
+        y: 18px;
+        width: 48px;
+        height: 48px;
+        border-radius: 24px;
+        background: Brand.card-raised;
+        Text {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            text: root.marker;
+            color: Brand.text;
+            font-size: 25px;
+            font-weight: 780;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    if root.badge != "": Rectangle {
+        x: parent.width - 160px;
+        y: 18px;
+        width: 142px;
+        height: 36px;
+        border-radius: 18px;
+        background: Brand.card-raised;
+        Text {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            text: root.badge;
+            color: Brand.text;
+        font-size: 16px;
+            font-weight: 750;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    Text {
+        x: 18px;
+        y: 75px;
+        width: parent.width - 36px;
+        height: 30px;
+        text: root.title;
+        color: Brand.text;
+        font-size: 25px;
+        font-weight: 750;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 18px;
+        y: 109px;
+        width: parent.width - 36px;
+        height: 52px;
+        text: root.text;
+        color: Brand.muted;
+        font-size: 19px;
+        wrap: word-wrap;
+        vertical-alignment: top;
+    }
+    TouchArea { clicked => { root.clicked(); } }
+}
+
+component WelcomePage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header { }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            spacing: 9px;
+            vertical-stretch: 1;
+
+            Eyebrow { text: TR2.lookup(TrId.OnboardingEyebrow); }
+            PageTitle { text: TR2.lookup(TrId.OnboardingTitle); }
+            BodyCopy { text: TR2.lookup(TrId.OnboardingContent); }
+            FeatureRow {
+                marker: "1";
+                title: TR2.lookup(TrId.OnboardingKeysTitle);
+                text: TR2.lookup(TrId.OnboardingKeysContent);
+            }
+            FeatureRow {
+                marker: "2";
+                title: TR2.lookup(TrId.OnboardingPairTitle);
+                text: TR2.lookup(TrId.OnboardingPairContent);
+            }
+            FeatureRow {
+                marker: "3";
+                title: TR2.lookup(TrId.OnboardingReviewTitle);
+                text: TR2.lookup(TrId.OnboardingReviewContent);
+            }
+            Rectangle { vertical-stretch: 1; }
+            Text {
+                text: TR2.lookup(TrId.OnboardingTestnet);
+                color: Brand.warning;
+                font-size: 16px;
+                font-weight: 650;
+                horizontal-alignment: center;
+            }
+            PrimaryAction {
+                label: TR2.lookup(TrId.OnboardingContinue);
+                clicked => { Callbacks.welcome-continue(); }
+            }
+            Rectangle { height: 16px; }
+        }
+    }
+}
+
+component WalletChoicePage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header {
+            show-back: true;
+            back => { State.page = PageId.welcome; }
+        }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            spacing: 14px;
+            vertical-stretch: 1;
+
+            Eyebrow { text: TR2.lookup(TrId.WalletChoiceEyebrow); }
+            PageTitle { text: TR2.lookup(TrId.WalletChoiceTitle); }
+            BodyCopy { text: TR2.lookup(TrId.WalletChoiceContent); }
+            ChoiceCard {
+                marker: "1";
+                badge: TR2.lookup(TrId.WalletChoiceRecommended);
+                title: TR2.lookup(TrId.WalletChoiceCreateTitle);
+                text: TR2.lookup(TrId.WalletChoiceCreateContent);
+                clicked => { Callbacks.choose-create(); }
+            }
+            ChoiceCard {
+                marker: "2";
+                title: TR2.lookup(TrId.WalletChoiceRecoverTitle);
+                text: TR2.lookup(TrId.WalletChoiceRecoverContent);
+                clicked => { Callbacks.choose-recover(); }
+            }
+            Rectangle { vertical-stretch: 1; }
+            Text {
+                text: TR2.lookup(TrId.WalletChoiceSecurity);
+                color: Brand.muted;
+                font-size: 16px;
+                wrap: word-wrap;
+                horizontal-alignment: center;
+            }
+            Rectangle { height: 16px; }
+        }
+    }
+}
+
+component RecoveryPage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header {
+            show-back: true;
+            back => { Callbacks.recovery-back(); }
+        }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            spacing: 16px;
+            vertical-stretch: 1;
+
+            Eyebrow { text: TR2.lookup(TrId.RecoveryEyebrow); }
+            PageTitle { text: TR2.lookup(TrId.RecoveryTitle); }
+            BodyCopy { text: TR2.lookup(TrId.RecoveryContent); }
+            Rectangle {
+                height: 210px;
+                border-radius: 22px;
+                background: Brand.card;
+                border-width: 1px;
+                border-color: Brand.border;
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 13px;
+                    Text {
+                        text: TR2.lookup(TrId.RecoveryStepOne);
+                        color: Brand.text;
+                        font-size: 20px;
+                        font-weight: 680;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: TR2.lookup(TrId.RecoveryStepTwo);
+                        color: Brand.text;
+                        font-size: 20px;
+                        font-weight: 680;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: TR2.lookup(TrId.RecoveryStepThree);
+                        color: Brand.text;
+                        font-size: 20px;
+                        font-weight: 680;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+            Rectangle {
+                height: 92px;
+                border-radius: 12px;
+                background: Brand.card;
+                border-width: 1px;
+                border-color: Brand.border;
+                Text {
+                    x: 18px;
+                    y: 0px;
+                    width: 34px;
+                    height: parent.height;
+                    text: "✓";
+                    color: Brand.text;
+                    font-size: 30px;
+                    font-weight: 780;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                Text {
+                    x: 64px;
+                    y: 12px;
+                    width: parent.width - 82px;
+                    height: parent.height - 24px;
+                    text: TR2.lookup(TrId.RecoverySecurity);
+                    color: Brand.text;
+                    font-size: 19px;
+                    font-weight: 650;
+                    wrap: word-wrap;
+                    vertical-alignment: center;
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
+            PrimaryAction {
+                label: TR2.lookup(TrId.RecoveryContinue);
+                clicked => { Callbacks.recovery-continue(); }
+            }
+            SecondaryAction {
+                label: TR2.lookup(TrId.CommonButtonBack);
+                clicked => { Callbacks.recovery-back(); }
+            }
+            Rectangle { height: 16px; }
+        }
+    }
+}
+
+component WalletReadyPage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header {
+            show-back: true;
+            back => {
+                State.page = State.wallet-recovered ? PageId.recovery : PageId.wallet-choice;
+            }
+        }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            spacing: 12px;
+            vertical-stretch: 1;
+
+            Eyebrow {
+                text: State.wallet-recovered
+                    ? TR2.lookup(TrId.WalletReadyRecoveredEyebrow)
+                    : TR2.lookup(TrId.WalletReadyCreatedEyebrow);
+            }
+            PageTitle {
+                text: State.wallet-recovered
+                    ? TR2.lookup(TrId.WalletReadyRecoveredTitle)
+                    : TR2.lookup(TrId.WalletReadyCreatedTitle);
+            }
+            BodyCopy {
+                text: State.wallet-recovered
+                    ? TR2.lookup(TrId.WalletReadyRecoveredContent)
+                    : TR2.lookup(TrId.WalletReadyCreatedContent);
+            }
+            FeatureRow {
+                marker: "1";
+                title: TR2.lookup(TrId.WalletReadySourceTitle);
+                text: TR2.lookup(TrId.WalletReadySourceContent);
+            }
+            FeatureRow {
+                marker: "2";
+                title: TR2.lookup(TrId.WalletReadyBackupTitle);
+                text: TR2.lookup(TrId.WalletReadyBackupContent);
+            }
+            FeatureRow {
+                marker: "3";
+                title: TR2.lookup(TrId.WalletReadyRecoveryTitle);
+                text: TR2.lookup(TrId.WalletReadyRecoveryContent);
+            }
+            Rectangle { vertical-stretch: 1; }
+            PrimaryAction {
+                label: TR2.lookup(TrId.WalletReadyContinue);
+                clicked => { Callbacks.wallet-ready-continue(); }
+            }
+            Rectangle { height: 16px; }
+        }
+    }
+}
+
+component WalletCreatingPage inherits BasePage {
+    background: Brand.background;
+    Timer {
+        interval: 3500ms;
+        running: true;
+        triggered => {
+            State.page = PageId.wallet-ready;
+        }
+    }
+    VerticalLayout {
+        Header { }
+        VerticalLayout {
+            vertical-stretch: 1;
+            alignment: center;
+            spacing: 24px;
+            padding-left: 32px;
+            padding-right: 32px;
+
+            HorizontalLayout {
+                alignment: center;
+                TimerCircularProgress {
+                    size: 112px;
+                    stroke-width: 8px;
+                    back-color: #1a1a1a;
+                    front-color: #f2f1ef;
+                    indeterminate: true;
+                }
+            }
+            PageTitle {
+                text: TR2.lookup(TrId.WalletCreatingTitle);
+                horizontal-alignment: center;
+            }
+            BodyCopy {
+                text: TR2.lookup(TrId.WalletCreatingContent);
+                horizontal-alignment: center;
+            }
+        }
+    }
+}
+
+component PairingPage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header {
+            show-back: true;
+            back => { Callbacks.pairing-back(); }
+        }
+        VerticalLayout {
+            vertical-stretch: 1;
+            alignment: center;
+            spacing: 10px;
+            padding-left: 22px;
+            padding-right: 22px;
+
+            Eyebrow {
+                text: State.bt-connected
+                    ? TR2.lookup(TrId.PairingStepTwo)
+                    : TR2.lookup(TrId.PairingStepOne);
+                horizontal-alignment: center;
+            }
+            Text {
+                text: State.bt-connected
+                    ? TR2.lookup(TrId.PairingTitleConnected)
+                    : TR2.lookup(TrId.PairingTitle);
+                color: Brand.text;
+                font-size: 32px;
+                font-weight: 780;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: State.bt-connected
+                    ? TR2.lookup(TrId.PairingContentConnected)
+                    : TR2.lookup(TrId.PairingContent);
+                color: Brand.muted;
+                font-size: 18px;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                alignment: center;
+                if !State.bt-connected && State.pairing-qr != "": QrCodeCard {
+                    data: State.pairing-qr;
+                }
+                if State.bt-connected: AnimatedQrCode {
+                    parts: State.pairing-xid-parts;
+                }
+            }
+            HorizontalLayout {
+                height: 54px;
+                alignment: center;
+                ConnectionPill {
+                    text: State.bt-connected
+                        ? TR2.lookup(TrId.PairingStatusConnected)
+                        : TR2.lookup(TrId.PairingStatusWaiting);
+                    active: State.bt-connected;
+                }
+            }
+            Text {
+                text: TR2.lookup(TrId.PairingKeepNearby);
+                color: Brand.muted;
+                font-size: 16px;
+                horizontal-alignment: center;
+            }
+            Rectangle { height: 12px; }
+        }
+    }
+}
+
+component AddressCard inherits Rectangle {
+    callback clicked;
+    height: 108px;
+    border-radius: 20px;
+    background: Brand.card;
+    border-width: 1px;
+    border-color: Brand.border;
+
+    Icon {
+        x: 18px;
+        y: 20px;
+        name: "copy";
+        size: 26px;
+        color: Brand.text;
+    }
+    Text {
+        x: 58px;
+        y: 14px;
+        width: parent.width - 110px;
+        height: 25px;
+        text: TR2.lookup(TrId.HomeAddress);
+        color: Brand.muted;
+        font-size: 16px;
+        font-weight: 650;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 58px;
+        y: 40px;
+        width: parent.width - 110px;
+        height: 28px;
+        text: State.address-short;
+        color: Brand.text;
+        font-size: 20px;
+        font-family: "monospace";
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 58px;
+        y: 72px;
+        width: parent.width - 110px;
+        height: 22px;
+        text: TR2.lookup(TrId.HomeAddressAction);
+        color: Brand.muted;
+        font-size: 15px;
+        vertical-alignment: center;
+    }
+    Icon {
+        x: parent.width - 42px;
+        y: (parent.height - self.height) / 2;
+        name: "chevron-right";
+        size: 24px;
+        color: Brand.muted;
+    }
+    TouchArea { clicked => { root.clicked(); } }
+}
+
+component MenuRow inherits Rectangle {
+    in property <string> title;
+    in property <string> icon;
+    in property <bool> destructive: false;
+    callback clicked;
+    height: 68px;
+    background: transparent;
+
+    Icon {
+        x: 16px;
+        y: (parent.height - self.height) / 2;
+        name: root.icon;
+        size: 28px;
+        color: root.destructive ? Brand.danger : Brand.text;
+    }
+    Text {
+        x: 60px;
+        y: 0px;
+        width: parent.width - 98px;
+        height: parent.height;
+        text: root.title;
+        color: root.destructive ? Brand.danger : Brand.text;
+        font-size: 23px;
+        font-weight: 750;
+        vertical-alignment: center;
+    }
+    Icon {
+        x: parent.width - 34px;
+        y: (parent.height - self.height) / 2;
+        name: "chevron-right";
+        size: 20px;
+        color: root.destructive ? Brand.danger : Brand.muted;
+    }
+    TouchArea { clicked => { root.clicked(); } }
+}
+
+component HomePage inherits BasePage {
+    property <bool> menu-open: false;
+    background: Brand.background;
+    VerticalLayout {
+        HomeHeader {
+            menu => { root.menu-open = !root.menu-open; }
+        }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            spacing: 14px;
+            vertical-stretch: 1;
+
+            Rectangle {
+                height: 178px;
+                border-radius: 24px;
+                background: Brand.card;
+                border-width: 1px;
+                border-color: Brand.border;
+                clip: true;
+                Icon {
+                    x: parent.width - 142px;
+                    y: 26px;
+                    name: "shield2";
+                    size: 122px;
+                    color: #303030;
+                }
+                Text {
+                    x: 20px;
+                    y: 20px;
+                    width: parent.width - 40px;
+                    height: 22px;
+                    text: TR2.lookup(TrId.HomeAccount);
+                    color: Brand.muted;
+                    font-size: 15px;
+                    font-weight: 750;
+                    letter-spacing: 1px;
+                    vertical-alignment: center;
+                }
+                Text {
+                    x: 20px;
+                    y: 51px;
+                    width: parent.width - 92px;
+                    height: 67px;
+                    text: TR2.lookup(TrId.HomeCustody);
+                    color: Brand.text;
+                    font-size: 29px;
+                    font-weight: 780;
+                    wrap: word-wrap;
+                    vertical-alignment: top;
+                }
+                Text {
+                    x: 20px;
+                    y: 125px;
+                    width: parent.width - 40px;
+                    height: 37px;
+                    text: TR2.lookup(TrId.HomeCustodyContent);
+                    color: Brand.muted;
+                    font-size: 17px;
+                    wrap: word-wrap;
+                    vertical-alignment: top;
+                }
+            }
+
+            AddressCard {
+                clicked => { State.page = PageId.address; }
+            }
+
+            Rectangle {
+                height: 112px;
+                border-radius: 22px;
+                background: Brand.text;
+                border-width: 1px;
+                border-color: Brand.text;
+                Rectangle {
+                    x: 18px;
+                    y: (parent.height - self.height) / 2;
+                    width: 50px;
+                    height: 50px;
+                    border-radius: 25px;
+                    background: Brand.background;
+                    Icon {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        name: "check";
+                        size: 28px;
+                        color: Brand.text;
+                    }
+                }
+                Text {
+                    x: 84px;
+                    y: 20px;
+                    width: parent.width - 102px;
+                    height: 31px;
+                    text: TR2.lookup(TrId.HomeReady);
+                    color: Brand.background;
+                    font-size: 23px;
+                    font-weight: 780;
+                    vertical-alignment: center;
+                }
+                Text {
+                    x: 84px;
+                    y: 53px;
+                    width: parent.width - 102px;
+                    height: 43px;
+                    text: TR2.lookup(TrId.HomeReadyContent);
+                    color: #494949;
+                    font-size: 16px;
+                    wrap: word-wrap;
+                    vertical-alignment: top;
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
+            Rectangle {
+                height: 48px;
+                border-radius: 12px;
+                background: #15120b;
+                border-width: 1px;
+                border-color: #4d4025;
+                Text {
+                    width: parent.width;
+                    height: parent.height;
+                    text: TR2.lookup(TrId.HomeTestnet);
+                    color: Brand.warning;
+                    font-size: 15px;
+                    font-weight: 650;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            Rectangle { height: 16px; }
+        }
+    }
+
+    if root.menu-open: Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: #99000000;
+        TouchArea { clicked => { root.menu-open = false; } }
+
+        Rectangle {
+            x: 104px;
+            y: 68px;
+            width: parent.width - 126px;
+            height: 161px;
+            border-radius: 22px;
+            background: Brand.card-raised;
+            border-width: 1px;
+            border-color: #565656;
+            clip: true;
+            VerticalLayout {
+                padding-top: 12px;
+                padding-bottom: 12px;
+                MenuRow {
+                    title: TR2.lookup(TrId.HomeHowItWorks);
+                    icon: "shield2";
+                    clicked => {
+                        root.menu-open = false;
+                        Callbacks.show-about();
+                    }
+                }
+                Rectangle { height: 1px; background: Brand.border; }
+                MenuRow {
+                    title: TR2.lookup(TrId.HomeDisconnect);
+                    icon: "bluetooth-off";
+                    destructive: true;
+                    clicked => {
+                        root.menu-open = false;
+                        Callbacks.request-disconnect();
+                    }
+                }
+            }
+        }
+    }
+}
+
+component AddressPage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header {
+            show-back: true;
+            back => { State.page = PageId.home; }
+        }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            spacing: 8px;
+            vertical-stretch: 1;
+
+            Eyebrow { text: TR2.lookup(TrId.AddressEyebrow); }
+            Text {
+                text: TR2.lookup(TrId.AddressTitle);
+                color: Brand.text;
+                font-size: 32px;
+                font-weight: 780;
+                wrap: word-wrap;
+            }
+            Text {
+                text: TR2.lookup(TrId.AddressContent);
+                color: Brand.muted;
+                font-size: 18px;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                alignment: center;
+                if State.address != "": Rectangle {
+                    width: 300px;
+                    height: 300px;
+                    border-radius: 20px;
+                    background: #f2f1ef;
+                    border-width: 1px;
+                    border-color: #bdbdbd;
+                    clip: true;
+                    Qrcode {
+                        x: 12px;
+                        y: 12px;
+                        width: 276px;
+                        height: 276px;
+                        data: State.address;
+                    }
+                }
+            }
+            Rectangle {
+                height: 94px;
+                border-radius: 18px;
+                background: Brand.card;
+                border-width: 1px;
+                border-color: Brand.border;
+                Text {
+                    x: 16px;
+                    y: 10px;
+                    width: parent.width - 32px;
+                    height: 22px;
+                    text: TR2.lookup(TrId.HomeAddress);
+                    color: Brand.muted;
+                    font-size: 16px;
+                    font-weight: 650;
+                }
+                Text {
+                    x: 16px;
+                    y: 34px;
+                    width: parent.width - 32px;
+                    height: 50px;
+                    text: State.address-line-one + "\n" + State.address-line-two;
+                    color: Brand.text;
+                    font-size: 18px;
+                    font-family: "monospace";
+                    font-weight: 650;
+                    vertical-alignment: center;
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
+            PrimaryAction {
+                label: TR2.lookup(TrId.CommonButtonDone);
+                clicked => { State.page = PageId.home; }
+            }
+            Rectangle { height: 10px; }
+        }
+    }
+}
+
+component AboutPage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header {
+            show-close: true;
+            close => { Callbacks.close-about(); }
+        }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            spacing: 14px;
+            vertical-stretch: 1;
+
+            Eyebrow { text: TR2.lookup(TrId.AboutEyebrow); }
+            PageTitle { text: TR2.lookup(TrId.AboutTitle); }
+            BodyCopy { text: TR2.lookup(TrId.AboutContent); }
+            FeatureRow {
+                marker: "1";
+                title: TR2.lookup(TrId.AboutPhoneTitle);
+                text: TR2.lookup(TrId.AboutPhoneContent);
+            }
+            FeatureRow {
+                marker: "2";
+                title: TR2.lookup(TrId.AboutPrimeTitle);
+                text: TR2.lookup(TrId.AboutPrimeContent);
+            }
+            FeatureRow {
+                marker: "3";
+                title: TR2.lookup(TrId.AboutApprovalTitle);
+                text: TR2.lookup(TrId.AboutApprovalContent);
+            }
+            Rectangle { vertical-stretch: 1; }
+            Text {
+                text: TR2.lookup(TrId.AboutTestnet);
+                color: Brand.warning;
+                font-size: 17px;
+                font-weight: 650;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+            PrimaryAction {
+                label: TR2.lookup(TrId.CommonButtonDone);
+                clicked => { Callbacks.close-about(); }
+            }
+            Rectangle { height: 16px; }
+        }
+    }
+}
+
+component DisconnectPage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header {
+            show-close: true;
+            close => { Callbacks.cancel-disconnect(); }
+        }
+        VerticalLayout {
+            padding-left: 26px;
+            padding-right: 26px;
+            spacing: 18px;
+            alignment: center;
+            vertical-stretch: 1;
+
+            Rectangle {
+                width: 92px;
+                height: 92px;
+                border-radius: 46px;
+                background: Brand.danger-dark;
+                border-width: 1px;
+                border-color: Brand.danger;
+                Text {
+                    text: "×";
+                    color: Brand.danger;
+                    font-size: 54px;
+                    font-weight: 500;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            PageTitle {
+                text: TR2.lookup(TrId.DisconnectTitle);
+                horizontal-alignment: center;
+            }
+            BodyCopy {
+                text: TR2.lookup(TrId.DisconnectContent);
+                horizontal-alignment: center;
+            }
+            Rectangle {
+                height: 126px;
+                border-radius: 20px;
+                background: Brand.danger-dark;
+                border-width: 1px;
+                border-color: Brand.danger;
+                Text {
+                    x: 20px;
+                    y: 18px;
+                    width: parent.width - 40px;
+                    height: parent.height - 36px;
+                    text: TR2.lookup(TrId.DisconnectWarning);
+                    color: #ffd6d3;
+                    font-size: 18px;
+                    font-weight: 630;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
+        }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            padding-bottom: 16px;
+            spacing: 12px;
+            PrimaryAction {
+                destructive: true;
+                busy: State.disconnecting;
+                label: TR2.lookup(TrId.DisconnectConfirm);
+                clicked => { Callbacks.confirm-disconnect(); }
+            }
+            SecondaryAction {
+                label: TR2.lookup(TrId.CommonButtonCancel);
+                clicked => { Callbacks.cancel-disconnect(); }
+            }
+        }
+    }
+}
+
+component DetailCard inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    height: 96px;
+    border-radius: 18px;
+    background: Brand.card;
+    border-width: 1px;
+    border-color: Brand.border;
+
+    VerticalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 13px;
+        padding-bottom: 13px;
+        spacing: 5px;
+        Text {
+            text: root.label;
+            color: Brand.muted;
+            font-size: 18px;
+            font-weight: 680;
+        }
+        Text {
+            text: root.value;
+            color: Brand.text;
+            font-size: 23px;
+            font-weight: 720;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component AddressDetailCard inherits Rectangle {
+    height: 112px;
+    border-radius: 18px;
+    background: Brand.card;
+    border-width: 1px;
+    border-color: Brand.border;
+
+    VerticalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 4px;
+        Text {
+            text: TR2.lookup(TrId.ReviewRecipient);
+            color: Brand.muted;
+            font-size: 18px;
+            font-weight: 680;
+        }
+        Text {
+            text: State.recipient-line-one + "\n" + State.recipient-line-two;
+            color: Brand.text;
+            font-family: "monospace";
+            font-size: 20px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component BrandSlideToButton inherits Rectangle {
+    in property <string> label;
+    in property <string> info-label;
+    in property <string> activated-label;
+    callback activated;
+
+    height: 70px;
+    border-radius: 16px;
+    background: Brand.card-raised;
+    border-width: 1px;
+    border-color: Brand.border;
+
+    private property <length> thumb-width: 126px;
+    private property <length> edge: 6px;
+    private property <length> max-slide-offset: root.width - thumb-width - edge * 2;
+    private property <length> slide-offset: min(
+        max-slide-offset,
+        max(0px, touch-area.pressed ? touch-area.mouse-x - touch-area.pressed-x : 0px)
+    );
+    private property <bool> has-activated: false;
+
+    if root.has-activated: Text {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        text: root.activated-label;
+        color: Brand.text;
+        font-size: 20px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    if !root.has-activated: HorizontalLayout {
+        x: root.thumb-width + root.edge + 8px;
+        y: 0px;
+        width: root.width - root.thumb-width - root.edge * 2 - 16px;
+        height: root.height;
+        alignment: center;
+        Text {
+            text: root.info-label;
+            color: Brand.muted;
+            font-size: 19px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+    }
+
+    Rectangle {
+        x: root.edge + root.slide-offset;
+        y: root.edge;
+        width: root.thumb-width;
+        height: root.height - root.edge * 2;
+        border-radius: 12px;
+        background: Brand.text;
+        opacity: root.has-activated ? 0 : 1;
+
+        Icon {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            name: "chevron-right";
+            size: 24px;
+            color: Brand.background;
+        }
+        Text {
+            x: 45px;
+            y: 0px;
+            width: parent.width - 53px;
+            height: parent.height;
+            text: root.label;
+            color: Brand.background;
+            font-size: 20px;
+            font-weight: 780;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        animate x {
+            duration: 80ms;
+            easing: ease-out;
+        }
+    }
+
+    touch-area := TouchArea {
+        moved() => {
+            if root.slide-offset >= root.max-slide-offset && !root.has-activated {
+                root.has-activated = true;
+                root.activated();
+            }
+        }
+    }
+}
+
+component ReviewPage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header { }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            spacing: 10px;
+            vertical-stretch: 1;
+
+            Text {
+                text: TR2.lookup(TrId.ReviewTitle);
+                color: Brand.text;
+                font-size: 35px;
+                font-weight: 780;
+            }
+            HorizontalLayout {
+                height: 48px;
+                alignment: space-between;
+                NetworkPill { }
+                Text {
+                    text: State.asset;
+                    color: Brand.text;
+                    font-size: 23px;
+                    font-weight: 780;
+                    vertical-alignment: center;
+                }
+            }
+            DetailCard { label: TR2.lookup(TrId.ReviewAmount); value: State.amount + " " + State.asset; }
+            AddressDetailCard { }
+            DetailCard { label: TR2.lookup(TrId.ReviewMaximumFee); value: State.maximum-fee + " ETH"; }
+            Text {
+                text: TR2.lookup(TrId.ReviewPolicy);
+                color: Brand.muted;
+                font-size: 18px;
+                font-weight: 520;
+                wrap: word-wrap;
+            }
+            Rectangle { vertical-stretch: 1; }
+        }
+        ButtonSection {
+            Button {
+                label: TR2.lookup(TrId.ReviewReject);
+                importance: Importance.tertiary;
+                clicked => { Callbacks.reject(); }
+            }
+            BrandSlideToButton {
+                label: TR2.lookup(TrId.ReviewSign);
+                info-label: TR2.lookup(TrId.ReviewSlide);
+                activated-label: TR2.lookup(TrId.ReviewSigning);
+                activated => { Callbacks.approve(); }
+            }
+        }
+        Rectangle { height: 18px; }
+    }
+}
+
+component ResultPage inherits BasePage {
+    property <bool> circle-revealed: false;
+    property <bool> check-revealed: false;
+    property <bool> content-revealed: false;
+
+    Timer {
+        interval: 120ms;
+        running: !root.circle-revealed;
+        triggered() => { root.circle-revealed = true; }
+    }
+    Timer {
+        interval: 300ms;
+        running: root.circle-revealed && !root.check-revealed;
+        triggered() => { root.check-revealed = true; }
+    }
+    Timer {
+        interval: 520ms;
+        running: root.check-revealed && !root.content-revealed;
+        triggered() => { root.content-revealed = true; }
+    }
+
+    background: Brand.background;
+    VerticalLayout {
+        Header { }
+        VerticalLayout {
+            vertical-stretch: 1;
+            alignment: center;
+            spacing: 15px;
+            padding-left: 28px;
+            padding-right: 28px;
+            HorizontalLayout {
+                height: 132px;
+                alignment: center;
+                Rectangle {
+                    width: 132px;
+                    height: 132px;
+                    background: transparent;
+
+                    Rectangle {
+                        width: root.check-revealed ? 130px : 74px;
+                        height: self.width;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: self.width / 2;
+                        background: transparent;
+                        border-width: 2px;
+                        border-color: Brand.text;
+                        opacity: root.check-revealed ? 0 : 0.45;
+
+                        animate width {
+                            duration: 440ms;
+                            easing: ease-out;
+                        }
+                        animate height {
+                            duration: 440ms;
+                            easing: ease-out;
+                        }
+                        animate opacity {
+                            duration: 440ms;
+                            easing: ease-out;
+                        }
+                    }
+
+                    Rectangle {
+                        width: root.circle-revealed ? 112px : 48px;
+                        height: self.width;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: self.width / 2;
+                        background: Brand.text;
+                        opacity: root.circle-revealed ? 1 : 0;
+
+                        Icon {
+                            name: "check";
+                            size: root.check-revealed ? 52px : 12px;
+                            color: Brand.background;
+                            opacity: root.check-revealed ? 1 : 0;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+
+                            animate size {
+                                duration: 360ms;
+                                easing: ease-out-back;
+                            }
+                            animate opacity {
+                                duration: 180ms;
+                                easing: ease-out;
+                            }
+                        }
+
+                        animate width {
+                            duration: 420ms;
+                            easing: ease-out-back;
+                        }
+                        animate height {
+                            duration: 420ms;
+                            easing: ease-out-back;
+                        }
+                        animate opacity {
+                            duration: 180ms;
+                            easing: ease-out;
+                        }
+                    }
+                }
+            }
+            Eyebrow {
+                text: TR2.lookup(TrId.ResultEyebrow);
+                horizontal-alignment: center;
+                opacity: root.content-revealed ? 1 : 0;
+                animate opacity { duration: 260ms; easing: ease-out; }
+            }
+            PageTitle {
+                text: TR2.lookup(TrId.ResultTitle);
+                horizontal-alignment: center;
+                opacity: root.content-revealed ? 1 : 0;
+                animate opacity { duration: 300ms; easing: ease-out; }
+            }
+            BodyCopy {
+                text: TR2.lookup(TrId.ResultContent);
+                font-size: 21px;
+                horizontal-alignment: center;
+                opacity: root.content-revealed ? 1 : 0;
+                animate opacity { duration: 340ms; easing: ease-out; }
+            }
+            Rectangle {
+                height: 80px;
+                border-radius: 18px;
+                background: Brand.card;
+                border-width: 1px;
+                border-color: Brand.border;
+                opacity: root.content-revealed ? 1 : 0;
+                animate opacity { duration: 380ms; easing: ease-out; }
+                Icon {
+                    x: 18px;
+                    y: (parent.height - self.height) / 2;
+                    name: "smartphone";
+                    size: 27px;
+                    color: Brand.text;
+                }
+                Text {
+                    x: 58px;
+                    y: 12px;
+                    width: parent.width - 74px;
+                    height: parent.height - 24px;
+                    text: TR2.lookup(TrId.ResultNext);
+                    color: Brand.text;
+                    font-size: 18px;
+                    font-weight: 650;
+                    wrap: word-wrap;
+                    vertical-alignment: center;
+                }
+            }
+        }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            padding-bottom: 16px;
+            PrimaryAction {
+                label: TR2.lookup(TrId.ResultAction);
+                clicked => { Callbacks.done(); }
+            }
+        }
+    }
+}
+
+component ErrorPage inherits BasePage {
+    background: Brand.background;
+    VerticalLayout {
+        Header { }
+        VerticalLayout {
+            vertical-stretch: 1;
+            alignment: center;
+            spacing: 18px;
+            padding-left: 28px;
+            padding-right: 28px;
+            Rectangle {
+                width: 84px;
+                height: 84px;
+                border-radius: 42px;
+                background: Brand.danger-dark;
+                border-width: 1px;
+                border-color: Brand.danger;
+                Text {
+                    text: "!";
+                    color: Brand.danger;
+                    font-size: 48px;
+                    font-weight: 780;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            PageTitle {
+                text: TR2.lookup(TrId.ErrorTitle);
+                horizontal-alignment: center;
+            }
+            BodyCopy {
+                text: State.error-message;
+                horizontal-alignment: center;
+            }
+        }
+        VerticalLayout {
+            padding-left: 22px;
+            padding-right: 22px;
+            padding-bottom: 16px;
+            PrimaryAction {
+                label: TR2.lookup(TrId.CommonButtonDone);
+                clicked => { Callbacks.done(); }
+            }
+        }
+    }
+}
+
+export component AppWindow inherits BaseWindow {
+    width: UISize.screen-width;
+    height: UISize.screen-height;
+    background: Brand.background;
+
+    if State.page == PageId.welcome: WelcomePage {}
+    if State.page == PageId.wallet-choice: WalletChoicePage {}
+    if State.page == PageId.recovery: RecoveryPage {}
+    if State.page == PageId.wallet-creating: WalletCreatingPage {}
+    if State.page == PageId.wallet-ready: WalletReadyPage {}
+    if State.page == PageId.pairing: PairingPage {}
+    if State.page == PageId.home: HomePage {}
+    if State.page == PageId.address: AddressPage {}
+    if State.page == PageId.about: AboutPage {}
+    if State.page == PageId.disconnect: DisconnectPage {}
+    if State.page == PageId.review: ReviewPage {}
+    if State.page == PageId.result: ResultPage {}
+    if State.page == PageId.error: ErrorPage {}
+}

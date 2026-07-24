@@ -1,0 +1,40 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run lint
+
+  repository:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate shell scripts
+        run: bash -n scripts/*.sh mobile/scripts/*.sh mobile/modules/quantumlink/*.sh
+      - name: Check source pins
+        run: |
+          test "$(grep -c '425c9791007146d46355478b3ec321f2321ab226' SOURCE_PINS.md)" -eq 1
+          grep -q '"@tetherto/wdk-wallet-evm": "1.0.0-beta.16"' mobile/package.json
