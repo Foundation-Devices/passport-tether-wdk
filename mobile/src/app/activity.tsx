@@ -1,8 +1,9 @@
+import { AssetGlyph } from '@/components/wallet/AssetGlyph';
+import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { colors } from '@/constants/colors';
-import { typography } from '@/constants/typography';
+import { fonts } from '@/constants/typography';
 import { SEPOLIA_EXPLORER, usePassport } from '@/passport/PassportProvider';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, ArrowUpRight, ExternalLink } from 'lucide-react-native';
+import { ArrowUpRight, ExternalLink, Repeat2 } from 'lucide-react-native';
 import React from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,57 +14,58 @@ function short(value: string): string {
 
 export default function ActivityScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { activity } = usePassport();
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-          <ArrowLeft size={21} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Activity</Text>
-        <View style={styles.headerSpacer} />
+      <WalletHeader title="Transactions" back />
+      <View style={styles.filters}>
+        {['Date', 'Currency', 'Type'].map((filter) => (
+          <TouchableOpacity key={filter} style={styles.filter}>
+            <Text style={styles.filterText}>{filter}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 35 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 30 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.eyebrow}>ETHEREUM SEPOLIA</Text>
-        <Text style={styles.title}>Passport transfers</Text>
-        <Text style={styles.subtitle}>
-          Transactions signed on Passport Prime and broadcast through Tether WDK.
-        </Text>
         {activity.length ? (
-          <View style={styles.card}>
-            {activity.map((item, index) => (
+          <View style={styles.list}>
+            {activity.map((item) => (
               <TouchableOpacity
                 key={item.hash}
-                style={[styles.row, index === activity.length - 1 ? styles.last : null]}
+                style={styles.row}
                 onPress={() => Linking.openURL(`${SEPOLIA_EXPLORER}/tx/${item.hash}`)}
               >
-                <View style={styles.icon}>
-                  <ArrowUpRight size={19} color={colors.primary} />
+                <View style={styles.iconWrap}>
+                  <AssetGlyph assetId={item.asset === 'ETH' ? 'eth' : 'usdt'} size={43} />
+                  <View style={styles.direction}>
+                    <ArrowUpRight size={12} color={colors.background} strokeWidth={2.5} />
+                  </View>
                 </View>
                 <View style={styles.copy}>
-                  <Text style={styles.rowTitle}>
-                    Sent {item.amount} {item.asset}
-                  </Text>
+                  <Text style={styles.rowTitle}>Sent {item.asset}</Text>
                   <Text style={styles.rowDetail}>
-                    {new Date(item.timestamp).toLocaleString()} • {short(item.recipient)}
+                    {new Date(item.timestamp).toLocaleDateString()} · {short(item.recipient)}
                   </Text>
                   <Text style={styles.hash}>{short(item.hash)}</Text>
                 </View>
-                <ExternalLink size={16} color={colors.textTertiary} />
+                <View style={styles.amountWrap}>
+                  <Text style={styles.amount}>
+                    −{item.amount} {item.asset}
+                  </Text>
+                  <ExternalLink size={15} color={colors.textTertiary} />
+                </View>
               </TouchableOpacity>
             ))}
           </View>
         ) : (
           <View style={styles.empty}>
-            <ArrowUpRight size={30} color={colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No transfers yet</Text>
+            <Repeat2 size={48} color={colors.text} strokeWidth={1.45} />
+            <Text style={styles.emptyTitle}>Nothing here yet…</Text>
             <Text style={styles.emptyDetail}>
-              Your locally recorded POC activity will appear here.
+              You haven’t made any transactions. Once you do, they’ll show up here.
             </Text>
           </View>
         )}
@@ -74,85 +76,70 @@ export default function ActivityScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  header: {
-    height: 64,
+  filters: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 10,
     paddingHorizontal: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    paddingTop: 4,
   },
-  back: {
-    width: 40,
+  filter: {
     height: 40,
-    borderRadius: 13,
-    backgroundColor: colors.card,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.055)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
-  headerSpacer: { width: 40 },
-  content: { padding: 21 },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.4,
-    marginTop: 12,
+  filterText: { color: colors.text, fontFamily: fonts.displayMedium, fontSize: 15 },
+  content: { flexGrow: 1, paddingHorizontal: 20 },
+  empty: {
+    flex: 1,
+    minHeight: 520,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+    paddingBottom: 50,
   },
-  title: {
+  emptyTitle: {
     color: colors.text,
-    fontSize: 30,
-    fontWeight: '700',
-    marginTop: 8,
-    ...typography.display,
+    fontFamily: fonts.displayMedium,
+    fontSize: 21,
+    marginTop: 25,
   },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 8,
-    marginBottom: 24,
+  emptyDetail: {
+    color: colors.text,
+    fontFamily: fonts.displayBook,
+    fontSize: 16,
+    lineHeight: 23,
+    textAlign: 'center',
+    marginTop: 9,
+    maxWidth: 320,
   },
-  card: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
+  list: { marginTop: 22, gap: 9 },
   row: {
-    minHeight: 88,
+    minHeight: 84,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
   },
-  last: { borderBottomWidth: 0 },
-  icon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: colors.cardDark,
+  iconWrap: { width: 49, height: 49 },
+  direction: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
-  copy: { flex: 1 },
-  rowTitle: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  copy: { flex: 1, marginLeft: 12 },
+  rowTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
   rowDetail: { color: colors.textSecondary, fontSize: 11, marginTop: 4 },
-  hash: { color: colors.textTertiary, fontFamily: 'monospace', fontSize: 10, marginTop: 4 },
-  empty: {
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
-    paddingVertical: 42,
-    paddingHorizontal: 25,
-  },
-  emptyTitle: { color: colors.text, fontSize: 15, fontWeight: '700', marginTop: 13 },
-  emptyDetail: { color: colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 5 },
+  hash: { color: colors.textTertiary, fontFamily: 'monospace', fontSize: 9, marginTop: 3 },
+  amountWrap: { alignItems: 'flex-end', gap: 7 },
+  amount: { color: colors.text, fontSize: 13, fontWeight: '600' },
 });

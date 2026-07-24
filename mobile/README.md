@@ -7,11 +7,18 @@ is Passport Prime.
 The application supports:
 
 - onboarding and two-stage QuantumLink pairing;
+- a production-style Tether Wallet home, Transactions screen, Receive Funds
+  tabs, and grouped currency/network sheets;
 - live Sepolia ETH and USD₮ balances;
 - receive address and QR;
 - ETH and allowlisted USD₮ send flows;
 - WDK fee quote, transaction construction, signing, broadcast, and status;
 - activity, reconnect, cancel, unpair, and settings.
+
+BTC, USA₮, XAU₮, Plasma, Polygon, Arbitrum, and Tron appear in the truthful
+wallet catalog but remain disabled because this testnet POC does not have both a
+documented test deployment and a Passport-only WDK signer for those routes. See
+[`../docs/TETHER_WALLET_PARITY.md`](../docs/TETHER_WALLET_PARITY.md).
 
 Seed creation/import/reveal routes and unsupported chains are removed. The
 external signer intentionally returns `privateKey: null`, and message, EIP-712,

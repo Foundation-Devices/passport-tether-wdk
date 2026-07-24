@@ -11,7 +11,14 @@ The POC is based on the following reviewed source revisions.
 | Foundation API baseline | `Foundation-Devices/foundation-api@5.7.0` |
 | WDK EVM wallet | `@tetherto/wdk-wallet-evm@1.0.0-beta.16` |
 | WDK React Native UI kit | `@tetherto/wdk-uikit-react-native@1.0.0-beta.2` |
+| WDK UI kit public source reviewed for parity | `tetherto/wdk-uikit-react-native@af54be98e7a5a4ca2ddb2382082cfabc1e06283e` |
+| WDK asset registry public source reviewed | `tetherto/wdk-asset-registry@2ce374e70d4126672e5dfdffa2481fdbfdc43e75` |
+| WDK Bitcoin wallet public source reviewed | `tetherto/wdk-wallet-btc@8fc027bf4166bc82bcebf4103ea9135b3d37f9fb` |
 
 Always apply the integration to a clean KeyOS checkout at the exact revision
 above. The setup script refuses other revisions so SDK drift cannot silently
 produce an unreviewed firmware build.
+
+The last three source revisions are design and feasibility references only;
+they are not additional runtime dependencies. The production Tether Wallet
+source is not public. See [`docs/TETHER_WALLET_PARITY.md`](docs/TETHER_WALLET_PARITY.md).

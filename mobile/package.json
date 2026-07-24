@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "test:unit": "tsx --test src/passport/__tests__/*.test.ts",
+    "test:unit": "tsx --test src/passport/__tests__/*.test.ts src/wallet/__tests__/*.test.ts",
     "test:wdk-signer": "tsx --test src/passport/__tests__/wdk-external-signer.test.ts",
     "prebuild": "expo prebuild",
     "prebuild:clean": "expo prebuild --clean",

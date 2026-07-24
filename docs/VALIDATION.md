@@ -8,7 +8,7 @@ Validated locally on macOS arm64 on 23–24 July 2026.
 | --- | --- | --- |
 | Mobile TypeScript | `npm run typecheck` | Pass |
 | Mobile lint | `npm run lint` | Pass |
-| External signer/protocol | 12 Node tests, including Hermes BC-UR/secure-random compatibility, BLE recovery, and tampered signed transaction | Pass |
+| External signer/protocol and wallet catalog | 15 Node tests, including Hermes BC-UR/secure-random compatibility, BLE recovery, tampered signed transactions, production asset grouping, and fail-closed unsupported routes | Pass |
 | Mobile QuantumLink Rust | 5 tests, including pinned pairing-response and authenticated heartbeat round trips | Pass |
 | Kotlin native module | Android release Kotlin compilation | Pass |
 | Metro/Hermes bundle | production Android export | Pass |
@@ -36,7 +36,7 @@ The final local artifacts are:
 
 | Artifact | Size | SHA-256 |
 | --- | ---: | --- |
-| `tether-wdk-passport-arm64-poc.apk` | 46,521,455 bytes | `4d2fb1c6d69904c16a73361df29c4a0eb6d11cfc57e5f8792d1d43081fabcf34` |
+| `tether-wdk-passport-arm64-poc.apk` | 46,982,720 bytes | `e8858999fa4abf7bbe3f04432414e5afeb7dd2d78201ed9f3588f8e9b55b6c35` |
 | `prime-app/app.elf` | 3,041,796 bytes | `985f267859dae5f0fe2f21d198e6deeb2a360bf5af78ad2009827219730b58f4` |
 | `prime-app/manifest.json` | 1,140 bytes | `d0d5d161d7cbd7781cd5c2d6e0c56af19553710af99bee04120e5c690ce03335` |
 
@@ -76,6 +76,17 @@ the Android release build. The current APK requests camera and nearby-device
 permissions sequentially, guards the connect CTA against duplicate launches,
 tints the WDK wordmark for the dark theme, and supports both acknowledged
 two-sided unpairing and an explicit offline local forget path.
+
+The 24 July wallet-parity pass rebuilt the Android home, transactions,
+receive, send-entry, and connection-menu surfaces around the production Tether
+Wallet hierarchy. BTC, USD₮, USA₮, XAU₮, and the production USD₮ network family
+are visible, but only the reviewed USD₮/ETH Sepolia routes are enabled. This
+presentation-only pass preserves the existing WDK external-signer,
+QuantumLink, onboarding, pairing, disconnect, and signing paths. The final APK
+again passed typecheck, all 15 tests, lint, arm64 native compilation, Hermes
+bundling, release minification, and manifest/ABI inspection. No Android device
+or emulator was attached for this pass, so its final visual and pairing
+regression remains a hardware sign-off item.
 
 Prime now polls the authoritative Bluetooth server every 350 ms in addition to
 the immediate state subscription. QuantumLink status no longer writes the UI's

@@ -1,32 +1,69 @@
+import { AssetGlyph } from '@/components/wallet/AssetGlyph';
+import { AssetSheet, NetworkSheet } from '@/components/wallet/AssetNetworkSheets';
+import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { colors } from '@/constants/colors';
-import { typography } from '@/constants/typography';
+import { fonts } from '@/constants/typography';
 import { usePassport } from '@/passport/PassportProvider';
+import {
+  getDefaultNetwork,
+  getWalletAsset,
+  type WalletAsset,
+  type WalletAssetId,
+  type WalletNetwork,
+} from '@/wallet/catalog';
 import { QRCode } from '@tetherto/wdk-uikit-react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, Copy, RefreshCw, Share2, ShieldCheck } from 'lucide-react-native';
-import React, { useState } from 'react';
-import { ActivityIndicator, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ChevronDown, Copy, RefreshCw, Share2 } from 'lucide-react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { toast } from 'sonner-native';
 
 export default function ReceiveScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { status, walletLoading, address, reconnect } = usePassport();
+  const [tab, setTab] = useState<'tetherme' | 'blockchains'>('blockchains');
+  const [assetId, setAssetId] = useState<WalletAssetId>('usdt');
+  const [network, setNetwork] = useState<WalletNetwork | null>(getDefaultNetwork('usdt'));
+  const [assetSheet, setAssetSheet] = useState(false);
+  const [networkSheet, setNetworkSheet] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
+  const asset = useMemo(() => getWalletAsset(assetId), [assetId]);
+  const routeAvailable = Boolean(asset.enabled && network?.enabled);
+  const qrValue = routeAvailable ? address : null;
+
+  const selectAsset = (next: WalletAsset) => {
+    setAssetId(next.id);
+    setNetwork(getDefaultNetwork(next.id));
+    setAssetSheet(false);
+    if (next.enabled) setNetworkSheet(true);
+  };
+
+  const selectNetwork = (next: WalletNetwork) => {
+    setNetwork(next);
+    setNetworkSheet(false);
+  };
+
   const copy = async () => {
-    if (!address) return;
-    await Clipboard.setStringAsync(address);
-    toast.success('Sepolia address copied');
+    if (!qrValue) return;
+    await Clipboard.setStringAsync(qrValue);
+    toast.success(`${network?.chainLabel ?? 'Wallet'} address copied`);
   };
 
   const share = async () => {
-    if (!address) return;
+    if (!qrValue) return;
     await Share.share({
-      title: 'Tether WDK Passport address',
-      message: `Ethereum Sepolia address: ${address}`,
+      title: 'Passport Tether Wallet address',
+      message: `${network?.chainLabel ?? 'Testnet'} address: ${qrValue}`,
     });
   };
 
@@ -42,199 +79,267 @@ export default function ReceiveScreen() {
   };
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-          <ArrowLeft size={21} color={colors.text} />
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <WalletHeader title="Receive Funds" back />
+      <View style={styles.tabs}>
+        <TouchableOpacity
+          style={[styles.tab, tab === 'tetherme' && styles.tabActive]}
+          onPress={() => setTab('tetherme')}
+        >
+          <Text style={[styles.tabText, tab === 'tetherme' && styles.tabTextActive]}>
+            tether.me
+          </Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Receive</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity
+          style={[styles.tab, tab === 'blockchains' && styles.tabActive]}
+          onPress={() => setTab('blockchains')}
+        >
+          <Text style={[styles.tabText, tab === 'blockchains' && styles.tabTextActive]}>
+            Blockchains
+          </Text>
+        </TouchableOpacity>
       </View>
-      <View style={styles.content}>
-        <Text style={styles.eyebrow}>ETHEREUM SEPOLIA</Text>
-        <Text style={styles.title}>Receive ETH or USD₮</Text>
-        <Text style={styles.subtitle}>
-          Both assets use the Passport-controlled address below. Only send Sepolia testnet assets.
-        </Text>
 
-        {address ? (
-          <View style={styles.qrCard}>
-            <QRCode value={address} size={220} color={colors.text} />
-          </View>
-        ) : (
-          <View style={styles.qrCard}>
-            {walletLoading || retrying ? (
-              <>
-                <ActivityIndicator color={colors.primary} size="large" />
-                <Text style={styles.unavailable}>Requesting your address from Passport Prime…</Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.unavailable}>
-                  {status.connected
-                    ? 'Passport is connected, but the account address has not loaded.'
-                    : 'Reconnect Passport Prime to load the account.'}
+      {tab === 'tetherme' ? (
+        <View style={styles.tetherMeUnavailable}>
+          <Text style={styles.unavailableTitle}>tether.me isn’t configured</Text>
+          <Text style={styles.unavailableCopy}>
+            This Passport proof of concept receives directly on public test networks. Choose
+            Blockchains to use your Passport-controlled address.
+          </Text>
+          <TouchableOpacity style={styles.outlineButton} onPress={() => setTab('blockchains')}>
+            <Text style={styles.outlineButtonText}>Use Blockchains</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <ScrollView
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 118 }]}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.title}>Receive via Blockchain</Text>
+            <View style={styles.selectors}>
+              <TouchableOpacity style={styles.selector} onPress={() => setAssetSheet(true)}>
+                <AssetGlyph assetId={assetId} size={27} />
+                <Text style={styles.selectorText} numberOfLines={1}>
+                  {asset.name} {asset.symbol}
                 </Text>
-                <TouchableOpacity style={styles.retryButton} onPress={retry}>
-                  <RefreshCw size={17} color={colors.black} />
-                  <Text style={styles.retryText}>
-                    {status.connected ? 'Retry account' : 'Reconnect'}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        )}
+                <ChevronDown size={17} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.selector}
+                onPress={() => setNetworkSheet(true)}
+                disabled={!asset}
+              >
+                <Text style={styles.selectorText} numberOfLines={1}>
+                  {network?.chainLabel ?? 'Choose Network'}
+                </Text>
+                <ChevronDown size={17} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
-        <View style={styles.verified}>
-          <ShieldCheck size={17} color={colors.success} />
-          <Text style={styles.verifiedText}>
-            {address
-              ? 'Address derived and verified through Passport Prime'
-              : 'Address will be verified through Passport Prime'}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.addressCard} onPress={copy} disabled={!address}>
-          <Text style={styles.addressLabel}>YOUR SEPOLIA ADDRESS</Text>
-          <Text style={styles.address} numberOfLines={2}>
-            {address ??
-              (walletLoading ? 'Requesting Passport account…' : 'Passport account not loaded')}
-          </Text>
-        </TouchableOpacity>
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.primaryButton} onPress={copy} disabled={!address}>
-            <Copy size={19} color={colors.black} />
-            <Text style={styles.primaryText}>Copy address</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={share} disabled={!address}>
-            <Share2 size={19} color={colors.text} />
-            <Text style={styles.secondaryText}>Share</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.warning}>
-          Testnet only. Mainnet funds sent to this demo address may be unrecoverable from the POC.
-        </Text>
-      </View>
+            {routeAvailable ? (
+              qrValue ? (
+                <View style={styles.receiveReady}>
+                  <View style={styles.qrWrap}>
+                    <QRCode value={qrValue} size={224} color={colors.text} />
+                  </View>
+                  <TouchableOpacity style={styles.addressPill} onPress={copy}>
+                    <Text style={styles.addressText} numberOfLines={1}>
+                      {qrValue}
+                    </Text>
+                    <Copy size={18} color={colors.text} />
+                  </TouchableOpacity>
+                  <Text style={styles.testnetWarning}>
+                    Testnet only · Never send mainnet funds to this address
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.waiting}>
+                  {walletLoading || retrying ? (
+                    <ActivityIndicator size="large" color={colors.text} />
+                  ) : (
+                    <RefreshCw size={42} color={colors.textTertiary} strokeWidth={1.4} />
+                  )}
+                  <Text style={styles.waitingTitle}>
+                    {status.connected ? 'Loading your wallet…' : 'Passport Prime is offline'}
+                  </Text>
+                  <Text style={styles.waitingCopy}>
+                    Connect Passport Prime to load its public receiving address.
+                  </Text>
+                  <TouchableOpacity style={styles.outlineButton} onPress={retry}>
+                    <Text style={styles.outlineButtonText}>Reconnect</Text>
+                  </TouchableOpacity>
+                </View>
+              )
+            ) : (
+              <View style={styles.waiting}>
+                <AssetGlyph assetId={assetId} size={58} />
+                <Text style={styles.waitingTitle}>Not available on a public testnet</Text>
+                <Text style={styles.waitingCopy}>
+                  {network?.reason ??
+                    'This asset has no documented public test deployment for the Passport POC.'}
+                </Text>
+                <Text style={styles.truthLabel}>No mock balance or address will be shown.</Text>
+              </View>
+            )}
+          </ScrollView>
+          {qrValue ? (
+            <View style={[styles.shareWrap, { bottom: insets.bottom + 18 }]}>
+              <TouchableOpacity style={styles.shareButton} onPress={share}>
+                <Share2 size={22} color={colors.text} />
+                <Text style={styles.shareText}>Share</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </>
+      )}
+
+      <AssetSheet
+        visible={assetSheet}
+        onClose={() => setAssetSheet(false)}
+        onSelect={selectAsset}
+      />
+      <NetworkSheet
+        visible={networkSheet}
+        assetId={assetId}
+        onClose={() => setNetworkSheet(false)}
+        onSelect={selectNetwork}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  header: {
-    height: 64,
+  tabs: {
+    alignSelf: 'center',
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    padding: 3,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    marginTop: 4,
   },
-  back: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
+  tab: {
+    minWidth: 104,
+    height: 39,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
   },
-  headerTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
-  headerSpacer: { width: 40 },
-  content: { flex: 1, paddingHorizontal: 22, paddingTop: 26 },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.4,
-    textAlign: 'center',
-  },
+  tabActive: { backgroundColor: 'rgba(255,255,255,0.075)' },
+  tabText: { color: colors.textTertiary, fontFamily: fonts.displayBook, fontSize: 16 },
+  tabTextActive: { color: colors.text },
+  content: { paddingHorizontal: 20, alignItems: 'center' },
   title: {
     color: colors.text,
-    fontSize: 29,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginTop: 8,
-    ...typography.display,
+    fontFamily: fonts.displayMedium,
+    fontSize: 23,
+    marginTop: 28,
   },
-  subtitle: {
+  selectors: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 25,
+  },
+  selector: {
+    flex: 1,
+    height: 53,
+    borderRadius: 15,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  selectorText: {
+    flex: 1,
+    color: colors.text,
+    fontFamily: fonts.displayBook,
+    fontSize: 13,
+  },
+  receiveReady: { alignItems: 'center', width: '100%', marginTop: 28 },
+  qrWrap: {
+    width: 250,
+    height: 250,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addressPill: {
+    width: 288,
+    height: 53,
+    borderRadius: 25,
+    paddingHorizontal: 18,
+    backgroundColor: 'rgba(255,255,255,0.075)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+  },
+  addressText: { flex: 1, color: colors.text, fontFamily: 'monospace', fontSize: 12 },
+  testnetWarning: { color: colors.warning, fontSize: 11, marginTop: 13, textAlign: 'center' },
+  waiting: {
+    width: '100%',
+    minHeight: 390,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 18,
+  },
+  waitingTitle: {
+    color: colors.text,
+    fontFamily: fonts.displayMedium,
+    fontSize: 20,
+    marginTop: 22,
+    textAlign: 'center',
+  },
+  waitingCopy: {
     color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 21,
     textAlign: 'center',
-    marginTop: 10,
-  },
-  qrCard: {
-    alignSelf: 'center',
-    width: 270,
-    height: 270,
-    borderRadius: 20,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 25,
-    marginBottom: 16,
-  },
-  unavailable: { color: colors.textTertiary, textAlign: 'center', padding: 30 },
-  retryButton: {
-    minHeight: 44,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  retryText: { color: colors.black, fontSize: 14, fontWeight: '700' },
-  verified: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  verifiedText: { color: colors.textSecondary, fontSize: 11 },
-  addressCard: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 17,
-    padding: 16,
-    marginTop: 22,
-  },
-  addressLabel: { color: colors.textTertiary, fontSize: 9, fontWeight: '800', letterSpacing: 1.1 },
-  address: {
-    color: colors.text,
-    fontFamily: 'monospace',
-    fontSize: 14,
-    lineHeight: 21,
     marginTop: 8,
+    maxWidth: 310,
   },
-  actions: { flexDirection: 'row', gap: 11, marginTop: 16 },
-  primaryButton: {
-    flex: 1.25,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  primaryText: { color: colors.black, fontSize: 14, fontWeight: '800' },
-  secondaryButton: {
-    flex: 0.75,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: colors.card,
+  truthLabel: { color: colors.textTertiary, fontSize: 11, marginTop: 13 },
+  outlineButton: {
+    minWidth: 190,
+    height: 51,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.text,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  outlineButtonText: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  tetherMeUnavailable: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 36,
+    paddingBottom: 80,
+  },
+  unavailableTitle: { color: colors.text, fontSize: 23, fontFamily: fonts.displayMedium },
+  unavailableCopy: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  shareWrap: { position: 'absolute', left: 20, right: 20 },
+  shareButton: {
+    height: 60,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.text,
+    backgroundColor: colors.background,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
   },
-  secondaryText: { color: colors.text, fontSize: 14, fontWeight: '700' },
-  warning: {
-    color: colors.warning,
-    fontSize: 11,
-    lineHeight: 17,
-    textAlign: 'center',
-    marginTop: 18,
-  },
+  shareText: { color: colors.text, fontFamily: fonts.displayMedium, fontSize: 17 },
 });

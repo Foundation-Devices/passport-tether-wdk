@@ -33,8 +33,8 @@ KeyOS revision so SDK drift cannot silently produce an unreviewed build.
 
 ## What works
 
-- Tether-styled Android onboarding, portfolio, send, receive, activity, and
-  connection management.
+- Production-style Tether Wallet Android home, transactions, Receive Funds
+  tabs, grouped asset/network sheets, send, and Passport connection menu.
 - Prime onboarding, wallet creation/recovery education, address display,
   transaction review, approval, success, and connection management.
 - Static Bluetooth QR followed by animated identity QR pairing.
@@ -46,6 +46,8 @@ KeyOS revision so SDK drift cannot silently produce an unreviewed build.
 - App-specific Prime derivation at `m/44'/60'/0'/0/0`.
 - Sepolia ETH and allowlisted test USD₮ balances, receives, transfers, fees,
   broadcasts, confirmations, and automatic balance refresh.
+- Truthful BTC, USD₮, USA₮, and XAU₮ catalog parity. Routes without a public
+  test deployment and Passport signer are visible but disabled.
 - Prime-side policy checks for chain, destination, calldata, fees, value,
   transaction type, and request replay.
 
@@ -245,10 +247,13 @@ Read:
 - [`docs/SECURITY.md`](docs/SECURITY.md)
 - [`docs/VALIDATION.md`](docs/VALIDATION.md)
 - [`docs/ENVOY_ANDROID_BLE_BENCHMARK.md`](docs/ENVOY_ANDROID_BLE_BENCHMARK.md)
+- [`docs/TETHER_WALLET_PARITY.md`](docs/TETHER_WALLET_PARITY.md)
 
 ## Current limitations
 
 - Sepolia only; no production network support.
+- BTC, USA₮, XAU₮, Plasma, Polygon, Arbitrum, and Tron are catalog references,
+  not enabled transaction routes.
 - Android only; no iOS QuantumLink module.
 - Developer-signed artifacts only.
 - No security audit or production recovery ceremony.
