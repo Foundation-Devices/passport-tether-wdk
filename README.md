@@ -198,11 +198,31 @@ For a complete developer firmware image:
 bash scripts/build_prime_firmware.sh ../KeyOS
 ```
 
+This requires `cosign2`, an authorized developer private key, and a
+`../KeyOS/cosign2.toml` signing profile. The script builds the bootloader and
+recovery image first, then stages the 16 valid KeyOS 1.3.0 filesystem apps
+(including Tether Wallet) before creating `../KeyOS/boot.img`. Recovery must be
+built before the normal app set because the recovery build clears the staged
+filesystem-app directory.
+
 Do not build a boot image from a single `--app gui-app-tether-wdk` invocation:
 that replaces KeyOS's standard filesystem app set and can leave the launcher
-without the apps required after PIN entry. App and firmware signing require
-Foundation-controlled developer credentials and are intentionally not
-automated by this public build workflow.
+without the apps required after PIN entry. Do not add
+`gui-app-emu-flux-server` to the KeyOS 1.3.0 build: it is not a member of the
+pinned Cargo workspace. App and firmware signing require
+Foundation-controlled developer credentials; the repository never contains
+the signing profile or private key.
+
+To flash an attached developer unit already in SAM-BA mode:
+
+```bash
+cd ../KeyOS
+cargo build --release --package passport-drive
+target/release/passport-drive samba flash boot.img
+```
+
+The flasher verifies the written bytes by default. Do not use `--no-verify` for
+a distributable or hardware-test image.
 
 ## Run the POC
 

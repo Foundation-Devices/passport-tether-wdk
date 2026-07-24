@@ -20,12 +20,12 @@ Validated locally on macOS arm64 on 23–24 July 2026.
 | KeyOS hosted app | `cargo xtask build --hosted --dont-sign --ci --app gui-app-tether-wdk` | Pass |
 | Prime ARM application | direct `armv7a-unknown-xous-elf` release build on KeyOS 1.3.0 | Pass |
 | Earlier signed Prime bundle | Cosign2 developer-signed production-target app bundle | Pass |
-| Complete KeyOS bundle | 17 signed filesystem apps: standard KeyOS set, development utilities, and Tether WDK | Pass |
+| Complete KeyOS bundle | 16 signed filesystem apps: the valid KeyOS 1.3.0 standard/development set plus Tether WDK | Pass |
 | Post-PIN startup | Restored onboarding-complete flag without changing PIN/seed; launcher remains unlocked beyond the former 15-second cutoff | Pass |
 | Prime UX | welcome, enlarged feature copy, wallet choice/recovery, wallet-created education, and pairing states captured at 480×800 on hardware | Pass |
 | Prime disconnect | `UnpairFromEnvoy` wired through KeyOS; Android clears the matching peer and wallet session on the unpair event | Pass |
 | Physical app deployment | existing bundle backed up; new ELF and manifest copied to the attached Prime and verified byte-for-byte | Pass |
-| Prime firmware flash | full 370 MiB image write and byte verification | Pass |
+| Prime firmware flash | full 394,939,904-byte padded image write and byte-for-byte readback verification | Pass |
 | Prime runtime | KeyOS 1.3.0, QuantumLink PID 27, Tether WDK PID 41 | Pass |
 | Prime UI | aligned welcome/choice/created-wallet screens, Tether branding, static pairing QR, and centered companion-app pill captured on hardware | Pass |
 | Android connection UX | sequential camera/BLE permission flow, guarded camera launch, visible connection management, and local offline forget path | Build pass; hardware rerun pending |
@@ -48,12 +48,11 @@ hashes.
 ## Environment constraints
 
 A Passport Prime development unit was flashed and validated over USB. The final
-developer image retains 16 standard/development native Prime apps, excludes the
-unrelated Flux child payloads whose upstream C build is currently broken, and
-adds Tether WDK as the seventeenth signed app. The system container and every
-filesystem app use Cosign2 developer signatures. The final Tether app is running
-as PID 41 and its aligned welcome screen was captured directly from the physical
-480×800 display.
+developer image contains 15 valid standard/development native Prime apps plus
+Tether WDK as the sixteenth signed app. It excludes the unrelated Flux emulator
+payload, which is not part of the pinned KeyOS 1.3.0 Cargo workspace. The system
+container and every filesystem app use Cosign2 developer signatures. The final
+Tether app opened directly from the physical 480×800 Passport Prime display.
 
 Two full-image integration failures were found and corrected during hardware
 recovery. First, an unsigned outer `app.bin` was rejected even though the Tether
@@ -92,10 +91,14 @@ Prime now polls the authoritative Bluetooth server every 350 ms in addition to
 the immediate state subscription. QuantumLink status no longer writes the UI's
 BLE flag, removing the stale-false race that left Prime on the static QR after
 Android reached step 2. The source integration was subsequently rebased onto
-the exact KeyOS 1.3.0 release revision and rebuilt for the ARM target. That
-rebased binary passes the clean-checkout suite but has not yet replaced the
-previously hardware-tested developer-signed app. A final on-device regression
-of the rebased binary remains required before release-candidate sign-off.
+the exact KeyOS 1.3.0 release revision, rebuilt for the ARM target, signed, and
+flashed as part of a complete developer image. The 394,939,736-byte image
+(`c9279efdbaa02dcf13789c0726d6b8b355fbfd7123fc6e975d8a86d566347ad4`)
+was padded to 394,939,904 bytes for sector alignment and verified byte-for-byte
+through chunked SAM-BA readback. KeyOS reported version 1.3.0 after reboot and
+Tether Wallet opened to its static companion-pairing QR. A final end-to-end
+pairing regression of this exact image remains required before
+release-candidate sign-off.
 
 ## Hardware sign-off checklist
 
