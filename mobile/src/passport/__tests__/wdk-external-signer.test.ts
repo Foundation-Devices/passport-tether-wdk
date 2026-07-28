@@ -213,7 +213,7 @@ test('Passport signer rejects a valid signature over different transaction field
       maxFeePerGas: 20_000_000_000n,
       maxPriorityFeePerGas: 1_000_000_000n,
     }),
-    /does not match the WDK request/
+    /does not match the request/
   );
 });
 

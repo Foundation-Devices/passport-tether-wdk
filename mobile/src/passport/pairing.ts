@@ -92,7 +92,7 @@ export function describePairingFailure(cause: unknown, pairing: boolean): string
     return message;
   }
   return pairing
-    ? 'Secure pairing did not complete. If Passport already lists a Tether WDK connection, remove it in Passport settings, forget the device here, and scan again.'
+    ? 'Secure pairing did not complete. If Passport already lists a Tether Wallet connection, remove it in Passport settings, forget the device here, and scan again.'
     : 'Could not read the secure identity. Keep the animated code inside the frame and try again.';
 }
 

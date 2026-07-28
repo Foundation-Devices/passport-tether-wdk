@@ -109,12 +109,15 @@ test('installs Buffer and secure random before wallet code loads in Hermes', () 
 });
 
 test('prefers the native diagnosis for recoverable pairing failures', () => {
-  const stale = Object.assign(new Error('Remove the Tether WDK connection in Passport settings.'), {
-    code: 'pair_stale_peer',
-  });
+  const stale = Object.assign(
+    new Error('Remove the Tether Wallet connection in Passport settings.'),
+    {
+      code: 'pair_stale_peer',
+    }
+  );
   assert.equal(
     describePairingFailure(stale, true),
-    'Remove the Tether WDK connection in Passport settings.'
+    'Remove the Tether Wallet connection in Passport settings.'
   );
 
   const timedOut = Object.assign(new Error('Passport Prime did not answer.'), {

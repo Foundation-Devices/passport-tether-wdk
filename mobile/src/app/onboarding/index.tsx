@@ -207,7 +207,7 @@ export default function PassportOnboardingScreen() {
         : 'Scan secure identity';
   const instruction =
     phase === 'static'
-      ? 'Scan the first QR code shown by the Tether WDK app on Passport.'
+      ? 'Scan the first QR code shown by the Tether Wallet app on Passport.'
       : phase === 'connecting'
         ? 'Keep both devices nearby while Bluetooth connects.'
         : 'Passport now shows an animated identity code. Hold steady while all frames are read.';
@@ -232,11 +232,11 @@ export default function PassportOnboardingScreen() {
               style={styles.heroMark}
             />
           </View>
-          <Text style={styles.eyebrow}>WDK HARDWARE WALLET</Text>
+          <Text style={styles.eyebrow}>PASSPORT HARDWARE WALLET</Text>
           <Text style={styles.heading}>Your keys stay on Passport Prime.</Text>
           <Text style={styles.body}>
-            Pair over encrypted Bluetooth with QuantumLink, then use Tether WDK to view and transfer
-            Sepolia ETH and USD₮. Every transaction is reviewed and approved on Passport.
+            Pair over encrypted Bluetooth with QuantumLink, then use Tether Wallet to view and
+            transfer Sepolia ETH and USD₮. Every transaction is reviewed and approved on Passport.
           </Text>
           <View style={styles.featureCard}>
             <Feature
@@ -338,7 +338,7 @@ export default function PassportOnboardingScreen() {
           </Text>
           <Text style={styles.body}>
             {phase === 'complete'
-              ? `${deviceName} is ready to authorize Tether WDK transactions.`
+              ? `${deviceName} is ready to authorize Tether Wallet transactions.`
               : 'Exchanging encrypted QuantumLink identities with Passport Prime.'}
           </Text>
         </View>

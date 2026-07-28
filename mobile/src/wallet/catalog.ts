@@ -121,7 +121,7 @@ export const walletNetworks: readonly WalletNetwork[] = [
     displayName: 'USD₮ on Tron',
     chainLabel: 'Tron',
     enabled: false,
-    reason: 'Passport hardware signing for the WDK Tron module is not implemented yet.',
+    reason: 'Passport hardware signing for Tron is not implemented yet.',
   },
   {
     id: 'ethereum-sepolia',

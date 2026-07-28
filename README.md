@@ -16,6 +16,20 @@ authoritative review, and signs only after an approval gesture.
 > not send mainnet assets, real USD₮, real BTC, or production secrets to this
 > software.
 
+## A note on naming
+
+Both applications present to the user as **Tether Wallet**. "WDK" survives
+throughout the code as identifiers — the `gui-app-tether-wdk` crate, the
+Android package `com.foundationdevices.tetherwdkpassport`, the `Wdk*`
+QuantumLink message types, and the stored-preference keys. Those are
+deliberately frozen: the Prime `appId` seeds `GetAppSeed`, so renaming it
+derives a different wallet and orphans any funded account, and changing the
+Android package or storage keys discards a user's pairing and history.
+
+Note also that WDK itself runs only on the phone. The Prime app shares no code
+with it and re-implements transaction parsing independently, which is what
+makes its review screen a second opinion rather than an echo.
+
 ## Compatibility
 
 The current integration is pinned, built, and tested against:
@@ -82,6 +96,12 @@ and local environment files are intentionally ignored.
 - Android SDK 36, NDK 27, and an arm64 Android device for BLE testing
 - Rust plus `aarch64-linux-android`
 - `cargo-ndk` and the UniFFI tooling used by the native module
+- The `arm-none-eabi` GNU toolchain on `PATH`, for Prime firmware builds.
+  KeyOS pins `CC` for the Xous target but not `AR`, so
+  `scripts/build_prime_firmware.sh` pins `AR_armv7a_unknown_xous_elf` itself
+  and refuses to run without `arm-none-eabi-ar`. Without that pin the host
+  archiver produces an empty micro-ecc archive and the recovery image fails to
+  link on undefined `uECC_*` symbols.
 
 KeyOS carries its own pinned Rust toolchain, which Rustup selects when commands
 run from inside its checkout.
@@ -175,7 +195,20 @@ Never commit that file.
 
 The companion uses `https://mempool.space/testnet/api` for Bitcoin Testnet by
 default. Override it with `EXPO_PUBLIC_BITCOIN_TESTNET_API` when using another
-Esplora-compatible testnet service.
+Esplora-compatible testnet service. That endpoint selects the chain: `tb1`
+addresses and the `m/84'/1'/0'/0/0` path are identical on testnet3 and
+testnet4, so pointing it at a testnet4 host switches chains silently and
+testnet3 coins stop appearing.
+
+Transaction history is read from public indexers rather than accumulated
+locally, so receives appear at all. Sepolia history comes from
+`https://eth-sepolia.blockscout.com`, overridable with
+`EXPO_PUBLIC_SEPOLIA_EXPLORER_API`, and Bitcoin history from the same Esplora
+endpoint as balances. A refresh discloses the wallet addresses to those
+services. Token history is restricted to the allowlisted test USD₮ contract so
+a look-alike token cannot write entries into the list.
+
+All overrides live in `mobile/.env.example`.
 
 ## Build the Passport Prime app
 
@@ -237,7 +270,7 @@ a distributable or hardware-test image.
 ## Run the POC
 
 1. Install the Android APK on an arm64 handset.
-2. Install the developer-signed Tether WDK app or complete developer firmware
+2. Install the developer-signed Tether Wallet app or complete developer firmware
    on a Passport Prime running KeyOS 1.3.0.
 3. Open Tether Wallet on Passport Prime and complete its wallet onboarding.
 4. In the Android app, choose Passport, grant camera/Bluetooth permissions, and

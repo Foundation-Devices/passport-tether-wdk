@@ -12,7 +12,7 @@ flowchart LR
     BP --> RN
     RN --> BLE["BLE Nordic UART"]
     BLE --> QS["KeyOS QuantumLink service"]
-    QS --> PA["Tether WDK Prime app"]
+    QS --> PA["Tether Wallet Prime app"]
     PA --> KD["KeyOS per-app seed + BIP32"]
     PA --> RV["Policy parser + device review"]
     EVM --> RPC["Sepolia JSON-RPC"]

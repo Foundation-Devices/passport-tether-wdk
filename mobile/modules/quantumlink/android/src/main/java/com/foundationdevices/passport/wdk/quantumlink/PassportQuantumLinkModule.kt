@@ -420,14 +420,14 @@ class PassportQuantumLinkModule : Module() {
               "pair_stale_peer",
               "Passport Prime did not answer. This phone was paired to a different " +
                 "Passport identity, and Passport may still hold that connection. " +
-                "Remove the Tether WDK connection in Passport's settings, then scan again.",
+                "Remove the Tether Wallet connection in Passport's settings, then scan again.",
               null
             )
           } else {
             promise.reject(
               "pair_timeout",
               "Passport Prime did not answer the pairing request. If Passport already " +
-                "lists a Tether WDK connection, remove it in Passport's settings and " +
+                "lists a Tether Wallet connection, remove it in Passport's settings and " +
                 "scan again.",
               null
             )

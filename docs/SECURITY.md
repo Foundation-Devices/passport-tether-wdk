@@ -59,6 +59,22 @@ zeroizing storage; derived BIP32 private fields and the signing key are erased
 after use. The phone identity is encrypted with an AES-GCM key held by Android
 Keystore. Public pairing metadata is stored separately.
 
+## Network disclosure
+
+The phone reaches three public testnet services: a Sepolia JSON-RPC, an Esplora
+Bitcoin Testnet API, and a Blockscout instance for Sepolia history. Balance and
+history refreshes disclose the wallet's EVM and Bitcoin addresses to whichever
+hosts are configured, which links those addresses to the device's IP. That is
+acceptable for a testnet POC and is not acceptable for production; a real
+deployment needs self-hosted or privacy-preserving indexers.
+
+Indexer responses are untrusted display data. They never influence signing:
+Passport Prime derives its own addresses and re-parses every transaction it is
+asked to sign, so a hostile or compromised indexer can mislead the history
+screen but cannot cause a transfer. Token history is filtered to the
+allowlisted test USD₮ contract, because any address can deploy a token that
+claims to be USD₮ and airdrop it to produce convincing entries.
+
 ## Dependency posture
 
 Package versions are locked. As validated on 24 July 2026,

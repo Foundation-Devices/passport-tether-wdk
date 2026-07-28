@@ -1,4 +1,4 @@
-# Tether WDK for Passport Android app
+# Tether Wallet Android companion
 
 This Expo/React Native application is a focused fork of Tether's WDK starter. It
 demonstrates WDK through a Tether-branded Ethereum Sepolia and Bitcoin Testnet

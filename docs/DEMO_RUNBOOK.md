@@ -41,8 +41,8 @@ adb install -r artifacts/tether-wdk-passport-arm64-poc.apk
 
 ## Pair
 
-1. Open **Tether WDK** on Passport Prime and unlock the device if asked.
-2. Open **Tether WDK for Passport** on Android.
+1. Open **Tether Wallet** on Passport Prime and unlock the device if asked.
+2. Open **Tether Wallet** on Android.
 3. Tap **Pair Passport Prime** once. Accept the camera permission first, then
    the nearby-device permission. The scanner opens automatically after both
    dialogs settle.

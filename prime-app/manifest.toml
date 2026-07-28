@@ -5,10 +5,10 @@ manifestVersion = "0"
 appId = "0x7465746865722d77646b2d7072696d65"
 
 [appName]
-en = "Tether WDK"
+en = "Tether Wallet"
 
 [appDescription]
-en = "Passport-secured Tether WDK wallet for Ethereum Sepolia."
+en = "Passport-secured Tether Wallet for Ethereum Sepolia and Bitcoin Testnet."
 
 [permissions]
 template = ["gui-app", "fs-generic"]

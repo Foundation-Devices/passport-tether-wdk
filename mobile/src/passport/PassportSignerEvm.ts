@@ -13,7 +13,7 @@ import {
 
 export class PassportUnsupportedSigningError extends Error {
   constructor(operation: string) {
-    super(`${operation} is not enabled for this Passport WDK proof of concept`);
+    super(`${operation} is not enabled for this Passport proof of concept`);
     this.name = 'PassportUnsupportedSigningError';
   }
 }
@@ -121,7 +121,7 @@ export class PassportSignerEvm {
       signed.maxPriorityFeePerGas !== BigInt(expected.maxPriorityFeePerGas) ||
       (signed.accessList?.length ?? 0) !== 0
     ) {
-      throw new Error('Passport returned a signed transaction that does not match the WDK request');
+      throw new Error('Passport returned a signed transaction that does not match the request');
     }
 
     return response.signedTransaction;

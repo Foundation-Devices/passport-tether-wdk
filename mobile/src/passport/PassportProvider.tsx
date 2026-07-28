@@ -474,7 +474,7 @@ export function PassportProvider({ children }: React.PropsWithChildren) {
   const pair = useCallback(
     async (primeXidBase64: string) => {
       setError(null);
-      const name = await PassportQuantumLink.pair(primeXidBase64, 'Tether WDK');
+      const name = await PassportQuantumLink.pair(primeXidBase64, 'Tether Wallet');
       setStatus(PassportQuantumLink.getStatus());
       await initializeWallet();
       return name;

@@ -285,7 +285,7 @@ export default function SendScreen() {
               <Text style={styles.modalSubtitle}>
                 {stage === 'signing'
                   ? 'Compare the details below with Passport Prime, then slide to approve on the device.'
-                  : `WDK prepared this ${quote?.asset === 'BTC' ? 'Bitcoin testnet' : 'Sepolia'} transfer. Passport will independently reconstruct and review it.`}
+                  : `Your phone prepared this ${quote?.asset === 'BTC' ? 'Bitcoin testnet' : 'Sepolia'} transfer. Passport will independently reconstruct and review it.`}
               </Text>
               <View style={styles.reviewCard}>
                 <ReviewRow label="Asset" value={quote?.asset ?? ''} />
@@ -357,7 +357,7 @@ function ResultView({ result, onDone }: { result: PassportActivity; onDone(): vo
       </Text>
       <Text style={styles.modalTitle}>Transfer submitted</Text>
       <Text style={styles.modalSubtitle}>
-        Passport Prime approved the transaction and Tether WDK broadcast the signed payload.
+        Passport Prime approved the transaction and Tether Wallet broadcast the signed payload.
       </Text>
       <View style={styles.hashCard}>
         <Text style={styles.reviewLabel}>TRANSACTION HASH</Text>

@@ -125,7 +125,7 @@ export default function SettingsScreen() {
           <MenuRow icon={CircleHelp} label="How it works" onPress={() => setHowItWorks(true)} />
           <MenuRow
             icon={ExternalLink}
-            label="Tether WDK documentation"
+            label="Developer documentation"
             onPress={() => Linking.openURL('https://docs.wdk.tether.io/')}
             last
           />
