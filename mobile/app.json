@@ -28,8 +28,7 @@
       ],
       "adaptiveIcon": {
         "backgroundColor": "#030303",
-        "foregroundImage": "./assets/images/tether-wallet-app-icon.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/tether-wallet-adaptive-foreground.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -39,14 +38,6 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-    "splash": {
-      "image": "./assets/images/tether-wallet-wordmark.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#030303",
-      "dark": {
-        "backgroundColor": "#030303"
-      }
-    },
     "userInterfaceStyle": "dark",
     "plugins": [
       "expo-router",
@@ -54,7 +45,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/tether-wallet-wordmark.png",
-          "imageWidth": 200,
+          "imageWidth": 150,
           "resizeMode": "contain",
           "backgroundColor": "#030303"
         }

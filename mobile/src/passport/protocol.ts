@@ -2,6 +2,7 @@ import type { UnsignedEvmTransaction } from '@tetherto/wdk-wallet-evm/signers';
 import { getAddress, hexlify, randomBytes } from 'ethers';
 
 export const PASSPORT_EVM_ACCOUNT_PATH = "m/44'/60'/0'/0/0";
+export const PASSPORT_BTC_ACCOUNT_PATH = "m/84'/1'/0'/0/0";
 export const WDK_RELATIVE_ACCOUNT_PATH = "0'/0/0";
 export const SEPOLIA_CHAIN_ID = 11_155_111;
 
@@ -44,6 +45,31 @@ export interface PassportEvmTransport {
   signEvmTransaction(
     request: PassportSignEvmTransactionRequest
   ): Promise<PassportSignEvmTransactionResponse>;
+}
+
+export type PassportBtcAccount = {
+  address: string;
+  publicKey: string;
+  path: typeof PASSPORT_BTC_ACCOUNT_PATH;
+};
+
+export type PassportSignBtcPsbtRequest = {
+  protocolVersion: 1;
+  requestId: string;
+  path: typeof PASSPORT_BTC_ACCOUNT_PATH;
+  psbt: string;
+};
+
+export type PassportSignBtcPsbtResponse = {
+  protocolVersion: 1;
+  requestId: string;
+  address: string;
+  signedTransaction: string;
+};
+
+export interface PassportBtcTransport {
+  getBtcAccount(path: typeof PASSPORT_BTC_ACCOUNT_PATH): Promise<PassportBtcAccount>;
+  signBtcPsbt(request: PassportSignBtcPsbtRequest): Promise<PassportSignBtcPsbtResponse>;
 }
 
 export class PassportPolicyError extends Error {

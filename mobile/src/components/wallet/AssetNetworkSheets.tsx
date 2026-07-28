@@ -81,7 +81,13 @@ export function NetworkSheet({
   return (
     <WalletBottomSheet visible={visible} title="Choose Network" onClose={onClose}>
       <Text style={styles.groupTitle}>
-        {assetId === 'btc' ? 'Bitcoin' : assetId === 'xaut' ? 'Gold' : 'Digital Dollars'}
+        {assetId === 'btc'
+          ? 'Bitcoin'
+          : assetId === 'xaut'
+            ? 'Gold'
+            : assetId === 'eth'
+              ? 'Ethereum'
+              : 'Digital Dollars'}
       </Text>
       {networks.length ? (
         networks.map((network) => (

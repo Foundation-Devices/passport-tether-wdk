@@ -13,6 +13,9 @@ pub const WDK_PROTOCOL_VERSION: u8 = 1;
 /// Ethereum Sepolia.
 pub const WDK_SEPOLIA_CHAIN_ID: u32 = 11_155_111;
 
+/// Bitcoin public testnet (BIP-84 coin type 1).
+pub const WDK_BITCOIN_TESTNET: u8 = 1;
+
 /// Phone → Passport: fetch one public EVM account.
 #[quantum_link]
 pub struct WdkEvmAccountRequest {
@@ -76,6 +79,65 @@ pub struct WdkEvmSignTransactionRequest {
 /// Passport → phone: the complete signed EIP-1559 transaction.
 #[quantum_link]
 pub struct WdkEvmSignTransactionResponse {
+    #[n(0)]
+    pub protocol_version: u8,
+    #[n(1)]
+    pub request_id: Vec<u8>,
+    #[n(2)]
+    pub address: String,
+    #[n(3)]
+    pub signed_transaction: Vec<u8>,
+}
+
+/// Phone → Passport: fetch the public BIP-84 Bitcoin testnet account.
+#[quantum_link]
+pub struct WdkBtcAccountRequest {
+    #[n(0)]
+    pub protocol_version: u8,
+    #[n(1)]
+    pub request_id: Vec<u8>,
+    #[n(2)]
+    pub derivation_path: String,
+    #[n(3)]
+    pub network: u8,
+}
+
+/// Passport → phone: public Bitcoin account material only.
+#[quantum_link]
+pub struct WdkBtcAccountResponse {
+    #[n(0)]
+    pub protocol_version: u8,
+    #[n(1)]
+    pub request_id: Vec<u8>,
+    #[n(2)]
+    pub derivation_path: String,
+    #[n(3)]
+    pub address: String,
+    #[n(4)]
+    pub public_key: Vec<u8>,
+}
+
+/// Phone → Passport: a complete PSBT for independent validation and review.
+///
+/// Passport accepts only native SegWit inputs owned by the requested BIP-84
+/// account, one external recipient, and optional change back to that account.
+#[quantum_link]
+pub struct WdkBtcSignPsbtRequest {
+    #[n(0)]
+    pub protocol_version: u8,
+    #[n(1)]
+    pub request_id: Vec<u8>,
+    #[n(2)]
+    pub derivation_path: String,
+    #[n(3)]
+    pub network: u8,
+    #[n(4)]
+    pub psbt: Vec<u8>,
+}
+
+/// Passport → phone: the finalized raw Bitcoin transaction.
+#[quantum_link]
+pub struct WdkBtcSignPsbtResponse {
     #[n(0)]
     pub protocol_version: u8,
     #[n(1)]

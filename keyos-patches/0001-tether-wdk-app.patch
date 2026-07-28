@@ -91,10 +91,10 @@ index 99cc21a..42533ed 100644
  ] }
  ngwallet = { git = "https://github.com/Foundation-Devices/ngwallet", tag = "3.4.0", features = [
 diff --git a/api/quantum-link/manifest.toml b/api/quantum-link/manifest.toml
-index 3fd7a7b..bf105a2 100644
+index 3fd7a7b..c50db00 100644
 --- a/api/quantum-link/manifest.toml
 +++ b/api/quantum-link/manifest.toml
-@@ -35,3 +35,9 @@ SendPrimeMagicBackupEnabled = { id = 42, type = "blockingArchive" }
+@@ -35,3 +35,13 @@ SendPrimeMagicBackupEnabled = { id = 42, type = "blockingArchive" }
  SubscribeConnectionStatus = { id = 43, type = "scalarEvent" }
  EnvoyTimezone = { id = 44, type = "blockingArchive" }
  SendPrimeFiatPreference = { id = 45, type = "blockingArchive" }
@@ -104,22 +104,27 @@ index 3fd7a7b..bf105a2 100644
 +SendWdkEvmAccountResponse = { id = 50, type = "blockingArchive" }
 +SendWdkEvmSignTransactionResponse = { id = 51, type = "blockingArchive" }
 +SendWdkRequestRejected = { id = 52, type = "blockingArchive" }
++SubscribeWdkBtcAccountRequest = { id = 53, type = "archiveEvent" }
++SubscribeWdkBtcSignPsbtRequest = { id = 54, type = "archiveEvent" }
++SendWdkBtcAccountResponse = { id = 55, type = "blockingArchive" }
++SendWdkBtcSignPsbtResponse = { id = 56, type = "blockingArchive" }
 diff --git a/api/quantum-link/src/messages.rs b/api/quantum-link/src/messages.rs
-index c16b2bc..e1fb62b 100644
+index c16b2bc..428b3d7 100644
 --- a/api/quantum-link/src/messages.rs
 +++ b/api/quantum-link/src/messages.rs
-@@ -10,6 +10,10 @@ use foundation_api::bitcoin::{AccountUpdate, SignPsbt};
+@@ -10,6 +10,11 @@ use foundation_api::bitcoin::{AccountUpdate, SignPsbt};
  use foundation_api::firmware::{FirmwareFetchEvent, FirmwareInstallEvent, FirmwareUpdateAvailable};
  use foundation_api::fx::{ExchangeRate, ExchangeRateHistory};
  use foundation_api::status::{EnvoyStatus, TimezoneResponse};
 +use foundation_api::wdk::{
++    WdkBtcAccountRequest, WdkBtcAccountResponse, WdkBtcSignPsbtRequest, WdkBtcSignPsbtResponse,
 +    WdkEvmAccountRequest, WdkEvmAccountResponse, WdkEvmSignTransactionRequest, WdkEvmSignTransactionResponse,
 +    WdkRequestCancelled, WdkRequestRejected,
 +};
  
  use crate::{PairingEvent, SecurityCheckState, SendMessageError};
  
-@@ -125,6 +129,24 @@ pub struct SendPrimeFiatPreference {
+@@ -125,6 +130,36 @@ pub struct SendPrimeFiatPreference {
  #[response(Result<TimezoneResponse, SendMessageError>)]
  pub struct EnvoyTimezone;
  
@@ -141,10 +146,22 @@ index c16b2bc..e1fb62b 100644
 +    pub response: WdkRequestRejected,
 +}
 +
++#[derive(Debug, Clone, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[response(Result<(), SendMessageError>)]
++pub struct SendWdkBtcAccountResponse {
++    pub response: WdkBtcAccountResponse,
++}
++
++#[derive(Debug, Clone, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[response(Result<(), SendMessageError>)]
++pub struct SendWdkBtcSignPsbtResponse {
++    pub response: WdkBtcSignPsbtResponse,
++}
++
  //
  // Subscriptions
  //
-@@ -176,3 +198,15 @@ pub struct SubscribeRestoreMagicBackup;
+@@ -176,3 +211,23 @@ pub struct SubscribeRestoreMagicBackup;
  #[derive(Debug, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
  #[event(crate::ConnectionStatus)]
  pub struct SubscribeConnectionStatus;
@@ -160,6 +177,14 @@ index c16b2bc..e1fb62b 100644
 +#[derive(Debug, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 +#[event(WdkRequestCancelled)]
 +pub struct SubscribeWdkRequestCancelled;
++
++#[derive(Debug, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[event(WdkBtcAccountRequest)]
++pub struct SubscribeWdkBtcAccountRequest;
++
++#[derive(Debug, server::Message, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
++#[event(WdkBtcSignPsbtRequest)]
++pub struct SubscribeWdkBtcSignPsbtRequest;
 diff --git a/localizer.json b/localizer.json
 index 029e372..d8adb8b 100644
 --- a/localizer.json
@@ -189,10 +214,10 @@ index 697f782..cd28e8f 100644
              HiddenApp { label: "Recovery".into(), app_id: "0x6775692d6170702d7265636f76657279".into() },
              HiddenApp { label: "Onboarding".into(), app_id: "0xdac5321775d449c11bc9c90f38067f8f".into() },
 diff --git a/os/quantum-link/src/main.rs b/os/quantum-link/src/main.rs
-index 4a4a289..1e2ddd1 100644
+index 4a4a289..1c656aa 100644
 --- a/os/quantum-link/src/main.rs
 +++ b/os/quantum-link/src/main.rs
-@@ -26,11 +26,12 @@ use foundation_api::{
+@@ -26,11 +26,15 @@ use foundation_api::{
      fx::{ExchangeRate, ExchangeRateHistory, PrimeFiatPreference},
      message::{EnvoyMessage, PassportMessage, QuantumLinkMessage, PROTOCOL_VERSION},
      onboarding::OnboardingState,
@@ -202,11 +227,14 @@ index 4a4a289..1e2ddd1 100644
      quantum_link::{ARIDCache, QlError, QuantumLink, ReplayCheck, EXPIRATION_DURATION},
      scv::{ChallengeResponseResult, SecurityCheck},
      status::{DeviceNameUpdate, DeviceStatus, EnvoyStatus, TimezoneRequest},
-+    wdk::{WdkEvmAccountRequest, WdkEvmSignTransactionRequest, WdkRequestCancelled},
++    wdk::{
++        WdkBtcAccountRequest, WdkBtcSignPsbtRequest, WdkEvmAccountRequest, WdkEvmSignTransactionRequest,
++        WdkRequestCancelled,
++    },
  };
  use gstp::{SealedEvent, SealedEventBehavior};
  use log::debug;
-@@ -465,7 +466,30 @@ impl QuantumLinkServer {
+@@ -465,7 +469,36 @@ impl QuantumLinkServer {
                      request.respond(Ok(response));
                  }
              }
@@ -234,10 +262,16 @@ index 4a4a289..1e2ddd1 100644
 +            QuantumLinkMessage::WdkRequestCancelled(request) => {
 +                self.message_subscribers.wdk_request_cancelled.send_nowait(&request);
 +            }
++            QuantumLinkMessage::WdkBtcAccountRequest(request) => {
++                self.message_subscribers.wdk_btc_account_request.send_nowait(&request);
++            }
++            QuantumLinkMessage::WdkBtcSignPsbtRequest(request) => {
++                self.message_subscribers.wdk_btc_sign_psbt_request.send_nowait(&request);
++            }
  
              QuantumLinkMessage::DeviceStatus(_)
              | QuantumLinkMessage::PairingResponse(_)
-@@ -483,13 +507,18 @@ impl QuantumLinkServer {
+@@ -483,13 +516,20 @@ impl QuantumLinkServer {
              | QuantumLinkMessage::PrimeMagicBackupEnabled(_)
              | QuantumLinkMessage::PrimeFiatPreference(_)
              | QuantumLinkMessage::PrimeMagicBackupStatusRequest(_)
@@ -248,6 +282,8 @@ index 4a4a289..1e2ddd1 100644
 +            | QuantumLinkMessage::TimezoneRequest(_)
 +            | QuantumLinkMessage::WdkEvmAccountResponse(_)
 +            | QuantumLinkMessage::WdkEvmSignTransactionResponse(_)
++            | QuantumLinkMessage::WdkBtcAccountResponse(_)
++            | QuantumLinkMessage::WdkBtcSignPsbtResponse(_)
 +            | QuantumLinkMessage::WdkRequestRejected(_) => {
                  log::warn!("received spurious event message");
                  log::debug!("{msg:?}");
@@ -258,7 +294,7 @@ index 4a4a289..1e2ddd1 100644
          }
      }
  
-@@ -751,6 +780,87 @@ impl server::ScalarEventSubscriptionHandler<SubscribeConnectionStatus> for Quant
+@@ -751,6 +791,141 @@ impl server::ScalarEventSubscriptionHandler<SubscribeConnectionStatus> for Quant
      }
  }
  
@@ -294,6 +330,30 @@ index 4a4a289..1e2ddd1 100644
 +        _context: &mut ServerContext<Self>,
 +    ) -> Result<(), server::Infallible> {
 +        self.message_subscribers.wdk_request_cancelled.push(subscriber);
++        Ok(())
++    }
++}
++
++impl server::ArchiveEventSubscriptionHandler<SubscribeWdkBtcAccountRequest> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        _msg: SubscribeWdkBtcAccountRequest,
++        subscriber: ArchiveEventSubscriber<WdkBtcAccountRequest>,
++        _context: &mut ServerContext<Self>,
++    ) -> Result<(), server::Infallible> {
++        self.message_subscribers.wdk_btc_account_request.push(subscriber);
++        Ok(())
++    }
++}
++
++impl server::ArchiveEventSubscriptionHandler<SubscribeWdkBtcSignPsbtRequest> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        _msg: SubscribeWdkBtcSignPsbtRequest,
++        subscriber: ArchiveEventSubscriber<WdkBtcSignPsbtRequest>,
++        _context: &mut ServerContext<Self>,
++    ) -> Result<(), server::Infallible> {
++        self.message_subscribers.wdk_btc_sign_psbt_request.push(subscriber);
 +        Ok(())
 +    }
 +}
@@ -343,10 +403,40 @@ index 4a4a289..1e2ddd1 100644
 +    }
 +}
 +
++impl server::BlockingArchiveAsyncHandler<SendWdkBtcAccountResponse> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        request: ArchiveRequest<SendWdkBtcAccountResponse>,
++        _context: &mut ServerContext<Self>,
++    ) {
++        let message = QuantumLinkMessage::WdkBtcAccountResponse(request.message.response.clone());
++        self.send(message, SendOutcome::Respond(request.response)).ok();
++    }
++
++    fn default_response() -> <SendWdkBtcAccountResponse as server::BlockingArchive>::Response {
++        Err(SendMessageError::Cancelled)
++    }
++}
++
++impl server::BlockingArchiveAsyncHandler<SendWdkBtcSignPsbtResponse> for QuantumLinkServer {
++    fn handle(
++        &mut self,
++        request: ArchiveRequest<SendWdkBtcSignPsbtResponse>,
++        _context: &mut ServerContext<Self>,
++    ) {
++        let message = QuantumLinkMessage::WdkBtcSignPsbtResponse(request.message.response.clone());
++        self.send(message, SendOutcome::Respond(request.response)).ok();
++    }
++
++    fn default_response() -> <SendWdkBtcSignPsbtResponse as server::BlockingArchive>::Response {
++        Err(SendMessageError::Cancelled)
++    }
++}
++
  impl server::BlockingArchiveAsyncHandler<SendAccountUpdate> for QuantumLinkServer {
      fn handle(&mut self, request: ArchiveRequest<SendAccountUpdate>, _context: &mut ServerContext<Self>) {
          let update = &request.message;
-@@ -1381,5 +1491,26 @@ fn log_message(prefix: &str, msg: &QuantumLinkMessage) {
+@@ -1381,5 +1556,38 @@ fn log_message(prefix: &str, msg: &QuantumLinkMessage) {
          QuantumLinkMessage::PrimeFiatPreference(_) => {
              log::info!("{prefix} PrimeFiatPreference")
          }
@@ -368,28 +458,45 @@ index 4a4a289..1e2ddd1 100644
 +        QuantumLinkMessage::WdkRequestCancelled(_) => {
 +            log::info!("{prefix} WdkRequestCancelled")
 +        }
++        QuantumLinkMessage::WdkBtcAccountRequest(_) => {
++            log::info!("{prefix} WdkBtcAccountRequest")
++        }
++        QuantumLinkMessage::WdkBtcAccountResponse(_) => {
++            log::info!("{prefix} WdkBtcAccountResponse")
++        }
++        QuantumLinkMessage::WdkBtcSignPsbtRequest(_) => {
++            log::info!("{prefix} WdkBtcSignPsbtRequest")
++        }
++        QuantumLinkMessage::WdkBtcSignPsbtResponse(_) => {
++            log::info!("{prefix} WdkBtcSignPsbtResponse")
++        }
 +        _ => {
 +            log::info!("{prefix} UnsupportedApplicationMessage")
 +        }
      }
  }
 diff --git a/os/quantum-link/src/subscriptions.rs b/os/quantum-link/src/subscriptions.rs
-index 52a2278..cb078da 100644
+index 52a2278..79b6db4 100644
 --- a/os/quantum-link/src/subscriptions.rs
 +++ b/os/quantum-link/src/subscriptions.rs
-@@ -7,6 +7,7 @@ use foundation_api::bitcoin::{AccountUpdate, SignPsbt};
+@@ -7,6 +7,10 @@ use foundation_api::bitcoin::{AccountUpdate, SignPsbt};
  use foundation_api::firmware::FirmwareFetchEvent;
  use foundation_api::fx::{ExchangeRate, ExchangeRateHistory};
  use foundation_api::status::EnvoyStatus;
-+use foundation_api::wdk::{WdkEvmAccountRequest, WdkEvmSignTransactionRequest, WdkRequestCancelled};
++use foundation_api::wdk::{
++    WdkBtcAccountRequest, WdkBtcSignPsbtRequest, WdkEvmAccountRequest, WdkEvmSignTransactionRequest,
++    WdkRequestCancelled,
++};
  use quantum_link::{messages::*, ConnectionStatus, PairingEvent, SecurityCheckState};
  use server::{ArchiveSubList, ScalarSubList};
  
-@@ -28,4 +29,7 @@ pub struct MessageSubscribers {
+@@ -28,4 +32,9 @@ pub struct MessageSubscribers {
      pub restore_magic_backup: ArchiveSubList<RestoreMagicBackupEvent>,
  
      pub connection_status: ScalarSubList<ConnectionStatus>,
 +    pub wdk_evm_account_request: ArchiveSubList<WdkEvmAccountRequest>,
 +    pub wdk_evm_sign_transaction_request: ArchiveSubList<WdkEvmSignTransactionRequest>,
 +    pub wdk_request_cancelled: ArchiveSubList<WdkRequestCancelled>,
++    pub wdk_btc_account_request: ArchiveSubList<WdkBtcAccountRequest>,
++    pub wdk_btc_sign_psbt_request: ArchiveSubList<WdkBtcSignPsbtRequest>,
  }

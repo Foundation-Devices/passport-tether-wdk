@@ -9,7 +9,7 @@ import {
 } from '@/passport/PassportProvider';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { formatEther, getAddress } from 'ethers';
+import { formatEther } from 'ethers';
 import {
   ArrowLeft,
   Check,
@@ -45,9 +45,19 @@ export default function SendScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ asset?: string; scannedAddress?: string }>();
-  const { status, address, balances, quoteTransfer, sendTransfer, cancelSigning, reconnect } =
-    usePassport();
-  const [asset, setAsset] = useState<PassportAsset>(params.asset === 'ETH' ? 'ETH' : 'USD₮');
+  const {
+    status,
+    address,
+    btcAddress,
+    balances,
+    quoteTransfer,
+    sendTransfer,
+    cancelSigning,
+    reconnect,
+  } = usePassport();
+  const [asset, setAsset] = useState<PassportAsset>(
+    params.asset === 'BTC' ? 'BTC' : params.asset === 'ETH' ? 'ETH' : 'USD₮'
+  );
   const [recipient, setRecipient] = useState(params.scannedAddress ?? '');
   const [amount, setAmount] = useState('');
   const [stage, setStage] = useState<TransferStage>('form');
@@ -76,7 +86,7 @@ export default function SendScreen() {
     }
     setStage('quoting');
     try {
-      const next = await quoteTransfer(asset, amount.trim(), getAddress(recipient.trim()));
+      const next = await quoteTransfer(asset, amount.trim(), recipient.trim());
       setQuote(next);
       setStage('review');
     } catch (cause) {
@@ -131,7 +141,7 @@ export default function SendScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Send</Text>
         <View style={styles.networkPill}>
-          <Text style={styles.networkText}>SEPOLIA</Text>
+          <Text style={styles.networkText}>{asset === 'BTC' ? 'BITCOIN TESTNET' : 'SEPOLIA'}</Text>
         </View>
       </View>
       <ScrollView
@@ -141,7 +151,7 @@ export default function SendScreen() {
       >
         <Text style={styles.eyebrow}>ASSET</Text>
         <View style={styles.segment}>
-          {(['USD₮', 'ETH'] as PassportAsset[]).map((item) => (
+          {(['USD₮', 'ETH', 'BTC'] as PassportAsset[]).map((item) => (
             <TouchableOpacity
               key={item}
               style={[styles.segmentButton, asset === item ? styles.segmentActive : null]}
@@ -166,7 +176,7 @@ export default function SendScreen() {
           <TextInput
             value={recipient}
             onChangeText={setRecipient}
-            placeholder="0x…"
+            placeholder={asset === 'BTC' ? 'tb1…' : '0x…'}
             placeholderTextColor={colors.textDisabled}
             autoCapitalize="none"
             autoCorrect={false}
@@ -194,7 +204,9 @@ export default function SendScreen() {
           <TouchableOpacity
             style={styles.maxButton}
             onPress={() => {
-              if (asset === 'ETH') {
+              if (asset === 'BTC') {
+                setAmount(balance.replaceAll(',', ''));
+              } else if (asset === 'ETH') {
                 const feeReserve = 5_000_000_000_000_000n;
                 setAmount(formatEther(balances.eth > feeReserve ? balances.eth - feeReserve : 0n));
               } else {
@@ -215,7 +227,11 @@ export default function SendScreen() {
             </Text>
           </View>
         </View>
-        {address ? <Text style={styles.fromText}>FROM {short(address).toUpperCase()}</Text> : null}
+        {asset === 'BTC' && btcAddress ? (
+          <Text style={styles.fromText}>FROM {short(btcAddress).toUpperCase()}</Text>
+        ) : address ? (
+          <Text style={styles.fromText}>FROM {short(address).toUpperCase()}</Text>
+        ) : null}
         {problem ? <Text style={styles.problem}>{problem}</Text> : null}
         <TouchableOpacity
           style={[
@@ -269,7 +285,7 @@ export default function SendScreen() {
               <Text style={styles.modalSubtitle}>
                 {stage === 'signing'
                   ? 'Compare the details below with Passport Prime, then slide to approve on the device.'
-                  : 'WDK prepared this Sepolia transfer. Passport will independently reconstruct and review it.'}
+                  : `WDK prepared this ${quote?.asset === 'BTC' ? 'Bitcoin testnet' : 'Sepolia'} transfer. Passport will independently reconstruct and review it.`}
               </Text>
               <View style={styles.reviewCard}>
                 <ReviewRow label="Asset" value={quote?.asset ?? ''} />
@@ -277,7 +293,13 @@ export default function SendScreen() {
                 <ReviewRow label="To" value={quote ? short(quote.recipient) : ''} mono />
                 <ReviewRow
                   label="Maximum fee"
-                  value={quote ? `${Number(formatEther(quote.feeWei)).toFixed(6)} ETH` : ''}
+                  value={
+                    quote
+                      ? quote.asset === 'BTC'
+                        ? `${quote.feeWei.toString()} sats`
+                        : `${Number(formatEther(quote.feeWei)).toFixed(6)} ETH`
+                      : ''
+                  }
                   last
                 />
               </View>
@@ -330,7 +352,9 @@ function ResultView({ result, onDone }: { result: PassportActivity; onDone(): vo
       <View style={styles.successIcon}>
         <Check size={43} color={colors.black} />
       </View>
-      <Text style={styles.modalEyebrow}>BROADCAST TO SEPOLIA</Text>
+      <Text style={styles.modalEyebrow}>
+        {result.asset === 'BTC' ? 'BROADCAST TO BITCOIN TESTNET' : 'BROADCAST TO SEPOLIA'}
+      </Text>
       <Text style={styles.modalTitle}>Transfer submitted</Text>
       <Text style={styles.modalSubtitle}>
         Passport Prime approved the transaction and Tether WDK broadcast the signed payload.
@@ -341,10 +365,18 @@ function ResultView({ result, onDone }: { result: PassportActivity; onDone(): vo
       </View>
       <TouchableOpacity
         style={styles.explorerButton}
-        onPress={() => Linking.openURL(`${SEPOLIA_EXPLORER}/tx/${result.hash}`)}
+        onPress={() =>
+          Linking.openURL(
+            result.asset === 'BTC'
+              ? `https://mempool.space/testnet/tx/${result.hash}`
+              : `${SEPOLIA_EXPLORER}/tx/${result.hash}`
+          )
+        }
       >
         <ExternalLink size={18} color={colors.primary} />
-        <Text style={styles.explorerText}>View on Etherscan</Text>
+        <Text style={styles.explorerText}>
+          {result.asset === 'BTC' ? 'View on mempool.space' : 'View on Etherscan'}
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.modalPrimary} onPress={onDone}>
         <Text style={styles.modalPrimaryText}>Done</Text>

@@ -25,6 +25,7 @@ use crate::{
         DeviceNameUpdate, DeviceStatus, EnvoyStatus, Heartbeat, TimezoneRequest, TimezoneResponse,
     },
     wdk::{
+        WdkBtcAccountRequest, WdkBtcAccountResponse, WdkBtcSignPsbtRequest, WdkBtcSignPsbtResponse,
         WdkEvmAccountRequest, WdkEvmAccountResponse, WdkEvmSignTransactionRequest,
         WdkEvmSignTransactionResponse, WdkRequestCancelled, WdkRequestRejected,
     },
@@ -186,4 +187,12 @@ pub enum QuantumLinkMessage {
     WdkRequestRejected(WdkRequestRejected),
     #[n(54)]
     WdkRequestCancelled(WdkRequestCancelled),
+    #[n(55)]
+    WdkBtcAccountRequest(WdkBtcAccountRequest),
+    #[n(56)]
+    WdkBtcAccountResponse(WdkBtcAccountResponse),
+    #[n(57)]
+    WdkBtcSignPsbtRequest(WdkBtcSignPsbtRequest),
+    #[n(58)]
+    WdkBtcSignPsbtResponse(WdkBtcSignPsbtResponse),
 }

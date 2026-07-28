@@ -4,6 +4,7 @@ import { Buffer as BufferPolyfill } from 'buffer';
 import { UR, UREncoder } from '@ngraveio/bc-ur';
 import { installRuntimePolyfills } from '../../runtime/installPolyfills';
 import {
+  describePairingFailure,
   parseEvmAddressQr,
   parsePassportPairingQr,
   PassportXidDecoder,
@@ -105,4 +106,30 @@ test('installs Buffer and secure random before wallet code loads in Hermes', () 
       delete (globalThis as { crypto?: Crypto }).crypto;
     }
   }
+});
+
+test('prefers the native diagnosis for recoverable pairing failures', () => {
+  const stale = Object.assign(new Error('Remove the Tether WDK connection in Passport settings.'), {
+    code: 'pair_stale_peer',
+  });
+  assert.equal(
+    describePairingFailure(stale, true),
+    'Remove the Tether WDK connection in Passport settings.'
+  );
+
+  const timedOut = Object.assign(new Error('Passport Prime did not answer.'), {
+    code: 'pair_timeout',
+  });
+  assert.equal(describePairingFailure(timedOut, true), 'Passport Prime did not answer.');
+});
+
+test('falls back to phase-appropriate advice for unlabelled failures', () => {
+  const opaque = new Error('boom');
+  assert.match(describePairingFailure(opaque, true), /remove it in Passport settings/);
+  assert.match(describePairingFailure(opaque, false), /inside the frame/);
+
+  // An actionable code with no message must not surface an empty banner.
+  const empty = Object.assign(new Error('   '), { code: 'pair_timeout' });
+  assert.match(describePairingFailure(empty, true), /remove it in Passport settings/);
+  assert.match(describePairingFailure(null, true), /remove it in Passport settings/);
 });

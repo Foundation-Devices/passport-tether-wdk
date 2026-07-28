@@ -34,7 +34,7 @@ export const walletAssets: readonly WalletAsset[] = [
     symbol: 'BTC',
     group: 'Bitcoin',
     accent: '#F7931A',
-    enabled: false,
+    enabled: true,
   },
   {
     id: 'usdt',
@@ -77,8 +77,7 @@ export const walletNetworks: readonly WalletNetwork[] = [
     name: 'Bitcoin Testnet',
     displayName: 'BTC on Bitcoin Testnet',
     chainLabel: 'Bitcoin Testnet',
-    enabled: false,
-    reason: 'Passport hardware signing for the WDK Bitcoin module is the next protocol phase.',
+    enabled: true,
   },
   {
     id: 'ethereum-sepolia',
@@ -148,7 +147,8 @@ export function getDefaultNetwork(assetId: WalletAssetId): WalletNetwork | null 
   return getNetworksForAsset(assetId).find((network) => network.enabled) ?? null;
 }
 
-export function toPassportAsset(assetId: WalletAssetId): 'USD₮' | 'ETH' | null {
+export function toPassportAsset(assetId: WalletAssetId): 'BTC' | 'USD₮' | 'ETH' | null {
+  if (assetId === 'btc') return 'BTC';
   if (assetId === 'usdt') return 'USD₮';
   if (assetId === 'eth') return 'ETH';
   return null;

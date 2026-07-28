@@ -4,16 +4,17 @@ A testnet-only proof of concept that showcases Tether WDK through a
 Tether-branded Android wallet while Passport Prime holds the account key,
 reviews every transfer, and signs over encrypted Bluetooth with QuantumLink.
 
-The phone owns the wallet experience, queries Ethereum Sepolia, builds and
-broadcasts transactions with WDK, and displays balances and activity. Passport
-Prime derives the app-specific key, independently parses the transaction,
-enforces policy, shows the authoritative review, and signs only after an
-approval gesture.
+The phone owns the wallet experience, queries Ethereum Sepolia and Bitcoin
+Testnet, builds and broadcasts transactions with WDK, and displays balances
+and activity. Passport Prime derives the app-specific EVM and BIP-84 Bitcoin
+keys, independently parses each transaction, enforces policy, shows the
+authoritative review, and signs only after an approval gesture.
 
 > [!WARNING]
-> This is unaudited proof-of-concept software for Ethereum Sepolia only. The
-> Android APK and Prime app use development signatures. Do not send mainnet
-> assets, real USD₮, or production secrets to this software.
+> This is unaudited proof-of-concept software for Ethereum Sepolia and Bitcoin
+> Testnet only. The Android APK and Prime app use development signatures. Do
+> not send mainnet assets, real USD₮, real BTC, or production secrets to this
+> software.
 
 ## Compatibility
 
@@ -23,9 +24,10 @@ The current integration is pinned, built, and tested against:
 | --- | --- |
 | Passport Prime / KeyOS SDK | KeyOS `v1.3.0` (`425c979…`) |
 | Tether WDK EVM wallet | `@tetherto/wdk-wallet-evm@1.0.0-beta.16` |
+| Tether WDK Bitcoin wallet | `@tetherto/wdk-wallet-btc@1.0.0-beta.11` |
 | Tether WDK React Native UI kit | `@tetherto/wdk-uikit-react-native@1.0.0-beta.2` |
 | Android application | Expo 54 / React Native 0.81, arm64 |
-| Network | Ethereum Sepolia |
+| Networks | Ethereum Sepolia and Bitcoin Testnet |
 
 The exact reviewed upstream revisions are in
 [`SOURCE_PINS.md`](SOURCE_PINS.md). The integration scripts refuse a different
@@ -43,11 +45,15 @@ KeyOS revision so SDK drift cannot silently produce an unreviewed build.
   unpairing.
 - Direct WDK external-signer integration. The phone has no wallet seed and the
   signer exposes no private key.
-- App-specific Prime derivation at `m/44'/60'/0'/0/0`.
+- App-specific Prime derivation at `m/44'/60'/0'/0/0` for EVM and
+  `m/84'/1'/0'/0/0` for Bitcoin Testnet.
 - Sepolia ETH and allowlisted test USD₮ balances, receives, transfers, fees,
   broadcasts, confirmations, and automatic balance refresh.
-- Truthful BTC, USD₮, USA₮, and XAU₮ catalog parity. Routes without a public
-  test deployment and Passport signer are visible but disabled.
+- Bitcoin Testnet balance, receive, WDK coin selection/fees, PSBT transport,
+  Passport review/signing, broadcast, and activity.
+- Truthful BTC, USD₮, USA₮, and XAU₮ catalog parity. USA₮ and XAU₮ remain
+  visible but disabled because Tether has not published official public test
+  deployments for them.
 - Prime-side policy checks for chain, destination, calldata, fees, value,
   transaction type, and request replay.
 
@@ -167,6 +173,10 @@ npx expo run:android
 Copy `mobile/.env.example` to `mobile/.env` only if an RPC override is needed.
 Never commit that file.
 
+The companion uses `https://mempool.space/testnet/api` for Bitcoin Testnet by
+default. Override it with `EXPO_PUBLIC_BITCOIN_TESTNET_API` when using another
+Esplora-compatible testnet service.
+
 ## Build the Passport Prime app
 
 For a hosted simulator bundle:
@@ -233,8 +243,9 @@ a distributable or hardware-test image.
 4. In the Android app, choose Passport, grant camera/Bluetooth permissions, and
    scan the static QR.
 5. Scan the animated identity QR shown by Passport Prime.
-6. Fund the displayed address with Sepolia ETH for gas and test USD₮.
-7. Create a transfer on Android, review the exact details on Passport Prime,
+6. Fund the displayed EVM address with Sepolia ETH for gas and test USD₮, or
+   fund the Bitcoin address with Bitcoin Testnet coins.
+7. Create an ETH, USD₮, or BTC test transfer on Android, review the exact details on Passport Prime,
    slide to approve, and wait for the phone to broadcast and refresh.
 
 The current allowlisted test USD₮ contract and RPC defaults are documented in
@@ -244,14 +255,14 @@ The current allowlisted test USD₮ contract and RPC defaults are documented in
 ## Architecture and security
 
 ```text
-Android UI + WDK
-        │ canonical unsigned transaction
+Android UI + WDK EVM/BTC
+        │ canonical EIP-1559 request or PSBT
         │ authenticated QuantumLink over BLE
         ▼
-Passport Prime policy + review + app-specific key
-        │ signed EIP-1559 transaction
+Passport Prime policy + review + app-specific keys
+        │ signed EIP-1559 or finalized Bitcoin transaction
         ▼
-Android verifies sender, then broadcasts to Sepolia
+Android verifies exact transaction, then broadcasts to its testnet
 ```
 
 The phone is intentionally treated as untrusted transaction input. Passport
@@ -271,9 +282,9 @@ Read:
 
 ## Current limitations
 
-- Sepolia only; no production network support.
-- BTC, USA₮, XAU₮, Plasma, Polygon, Arbitrum, and Tron are catalog references,
-  not enabled transaction routes.
+- Ethereum Sepolia and Bitcoin Testnet only; no production network support.
+- USA₮, XAU₮, Plasma, Polygon, Arbitrum, and Tron are catalog references, not
+  enabled transaction routes.
 - Android only; no iOS QuantumLink module.
 - Developer-signed artifacts only.
 - No security audit or production recovery ceremony.

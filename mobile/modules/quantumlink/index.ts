@@ -47,6 +47,27 @@ export type NativeSignEvmTransactionResponse = {
   signedTransaction: string;
 };
 
+export type NativeBtcAccount = {
+  protocolVersion: 1;
+  requestId: string;
+  path: string;
+  address: string;
+  publicKey: string;
+};
+
+export type NativeSignBtcPsbtRequest = {
+  requestId: string;
+  path: string;
+  psbt: string;
+};
+
+export type NativeSignBtcPsbtResponse = {
+  protocolVersion: 1;
+  requestId: string;
+  address: string;
+  signedTransaction: string;
+};
+
 type ConnectionEvent = {
   state: QuantumLinkConnectionState;
   connected: boolean;
@@ -75,6 +96,8 @@ type PassportQuantumLinkNativeModule = {
   signEvmTransaction(
     request: NativeSignEvmTransactionRequest
   ): Promise<NativeSignEvmTransactionResponse>;
+  getBtcAccount(path: string, requestId: string): Promise<NativeBtcAccount>;
+  signBtcPsbt(request: NativeSignBtcPsbtRequest): Promise<NativeSignBtcPsbtResponse>;
   cancel(requestId: string): Promise<void>;
   addListener(
     event: 'onConnectionChanged',

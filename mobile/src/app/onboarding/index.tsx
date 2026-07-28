@@ -2,6 +2,7 @@ import { colors } from '@/constants/colors';
 import { fonts, typography } from '@/constants/typography';
 import { usePassport } from '@/passport/PassportProvider';
 import {
+  describePairingFailure,
   parsePassportPairingQr,
   PassportXidDecoder,
   recoverPairingConnection,
@@ -186,11 +187,7 @@ export default function PassportOnboardingScreen() {
         setTimeout(() => router.replace('/wallet'), 650);
       } catch (cause) {
         console.warn('Passport secure identity scan failed', cause);
-        setProblem(
-          phaseRef.current === 'pairing'
-            ? 'Secure pairing did not complete. Keep both devices nearby and scan the identity code again.'
-            : 'Could not read the secure identity. Keep the animated code inside the frame and try again.'
-        );
+        setProblem(describePairingFailure(cause, phaseRef.current === 'pairing'));
         decoder.current.reset();
         setProgress(0);
         transition('xid');

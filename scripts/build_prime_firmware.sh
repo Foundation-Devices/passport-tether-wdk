@@ -23,6 +23,18 @@ if [[ ! -f cosign2.toml ]]; then
   exit 1
 fi
 
+# KeyOS .cargo/config.toml pins CC for the Xous target but not AR. Without AR
+# the cc crate archives the cross-compiled micro-ecc objects with the host
+# macOS tool, which silently produces an empty archive and fails the recovery
+# link with undefined uECC_* symbols. Pin both halves of the toolchain here.
+if ! command -v arm-none-eabi-ar >/dev/null 2>&1; then
+  echo "arm-none-eabi-ar is required to archive the micro-ecc objects." >&2
+  echo "Install the arm-none-eabi GNU toolchain and put it on PATH." >&2
+  exit 1
+fi
+
+export AR_armv7a_unknown_xous_elf="${AR_armv7a_unknown_xous_elf:-arm-none-eabi-ar}"
+
 # Passing --app replaces KeyOS's default filesystem-app list. A boot image
 # containing only Tether cannot complete normal GUI startup after PIN entry, so
 # keep the valid standard and development apps alongside the POC. The Flux

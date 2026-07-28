@@ -18,12 +18,12 @@ test('catalog mirrors the production Tether Wallet currency groups', () => {
 test('only truthfully supported routes map to the existing Passport signer', () => {
   assert.equal(getDefaultNetwork('usdt')?.id, 'ethereum-sepolia');
   assert.equal(getDefaultNetwork('eth')?.id, 'ethereum-sepolia');
-  assert.equal(getDefaultNetwork('btc'), null);
+  assert.equal(getDefaultNetwork('btc')?.id, 'bitcoin-testnet');
   assert.equal(getDefaultNetwork('usat'), null);
   assert.equal(getDefaultNetwork('xaut'), null);
   assert.equal(toPassportAsset('usdt'), 'USD₮');
   assert.equal(toPassportAsset('eth'), 'ETH');
-  assert.equal(toPassportAsset('btc'), null);
+  assert.equal(toPassportAsset('btc'), 'BTC');
 });
 
 test('USD₮ presents the production network family without enabling fake testnets', () => {

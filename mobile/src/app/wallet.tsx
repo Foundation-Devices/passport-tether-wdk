@@ -1,3 +1,4 @@
+import { AssetGlyph } from '@/components/wallet/AssetGlyph';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
@@ -34,6 +35,8 @@ export default function WalletScreen() {
   const [reconnecting, setReconnecting] = useState(false);
 
   const usdtBalance = useMemo(() => displayBalance('USD₮', balances), [balances]);
+  const ethBalance = useMemo(() => displayBalance('ETH', balances), [balances]);
+  const btcBalance = useMemo(() => displayBalance('BTC', balances), [balances]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -103,7 +106,7 @@ export default function WalletScreen() {
             onPress={() => setBalanceVisible((current) => !current)}
             accessibilityLabel={balanceVisible ? 'Hide wallet balance' : 'Show wallet balance'}
           >
-            <Text style={styles.balanceLabel}>Total Wallet Balance</Text>
+            <Text style={styles.balanceLabel}>USD₮ balance</Text>
             {balanceVisible ? (
               <Eye size={21} color={colors.text} strokeWidth={1.7} />
             ) : (
@@ -122,6 +125,28 @@ export default function WalletScreen() {
             </Text>
           </View>
           <Text style={styles.balanceCaption}>USD₮ on Ethereum Sepolia</Text>
+
+          <View style={styles.gasBalance}>
+            <AssetGlyph assetId="eth" size={34} />
+            <View style={styles.gasBalanceCopy}>
+              <Text style={styles.gasBalanceLabel}>Network fees</Text>
+              <Text style={styles.gasBalanceNetwork}>Ethereum Sepolia</Text>
+            </View>
+            <Text style={styles.gasBalanceValue}>
+              {balanceVisible ? `${ethBalance} ETH` : '•••• ETH'}
+            </Text>
+          </View>
+
+          <View style={[styles.gasBalance, styles.btcBalance]}>
+            <AssetGlyph assetId="btc" size={34} />
+            <View style={styles.gasBalanceCopy}>
+              <Text style={styles.gasBalanceLabel}>Bitcoin</Text>
+              <Text style={styles.gasBalanceNetwork}>Bitcoin testnet</Text>
+            </View>
+            <Text style={styles.gasBalanceValue}>
+              {balanceVisible ? `${btcBalance} BTC` : '•••• BTC'}
+            </Text>
+          </View>
 
           <TouchableOpacity
             style={styles.transactionsLink}
@@ -226,6 +251,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 5,
   },
+  gasBalance: {
+    width: '100%',
+    maxWidth: 330,
+    minHeight: 68,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 25,
+  },
+  gasBalanceCopy: { flex: 1, marginLeft: 12 },
+  gasBalanceLabel: {
+    color: colors.text,
+    fontFamily: fonts.displayMedium,
+    fontSize: 14,
+  },
+  gasBalanceNetwork: {
+    color: colors.textTertiary,
+    fontSize: 11,
+    marginTop: 3,
+  },
+  gasBalanceValue: {
+    color: colors.text,
+    fontFamily: fonts.displayMedium,
+    fontSize: 14,
+    marginLeft: 12,
+  },
+  btcBalance: { marginTop: 9 },
   transactionsLink: {
     flexDirection: 'row',
     alignItems: 'center',

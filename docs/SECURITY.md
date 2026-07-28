@@ -2,7 +2,7 @@
 
 ## Invariants enforced by the POC
 
-- No EVM seed or private key is created or stored on the phone.
+- No EVM or Bitcoin seed/private key is created or stored on the phone.
 - Passport uses a KeyOS per-app seed and the fixed path
   `m/44'/60'/0'/0/0`.
 - The phone cannot ask Passport to sign an arbitrary digest.
@@ -39,6 +39,19 @@ Rejected:
 Limits are defense-in-depth POC caps, not financial advice or a production
 policy.
 
+Bitcoin Testnet allowed:
+
+- fixed BIP-84 path `m/84'/1'/0'/0/0`;
+- native P2WPKH inputs whose `witness_utxo` matches Passport's derived account;
+- `SIGHASH_ALL`, one external testnet recipient, and optional same-account
+  change;
+- 1–50 inputs, 1–2 outputs, and a maximum 1,000,000 satoshi fee.
+
+Bitcoin mainnet, foreign inputs, arbitrary scripts, multiple recipients,
+non-owned change, alternate sighash modes, oversized PSBTs, and unbounded fees
+are rejected. The phone additionally compares the finalized raw transaction
+with the original PSBT before broadcasting.
+
 ## Secret handling
 
 Prime secret material is derived only when needed. The app seed is wrapped in
@@ -48,11 +61,11 @@ Keystore. Public pairing metadata is stored separately.
 
 ## Dependency posture
 
-Package versions are locked. As validated on 23 July 2026,
-`npm audit --omit=dev` reports no high or critical vulnerabilities; remaining
-reports are one low and fifteen moderate transitive advisories in the pinned
-Expo tool/runtime graph. The full development dependency graph has additional
-advisories and must not be treated as a hardened build environment.
+Package versions are locked. As validated on 24 July 2026,
+`npm audit --omit=dev` reports one low, fourteen moderate, and one high
+transitive advisory in the pinned Expo tool/runtime graph; the available fix
+requires a major Expo upgrade. The full development dependency graph reports
+additional advisories and must not be treated as a hardened build environment.
 
 WDK and its UI kit are prerelease packages. KeyOS and the protocol integration
 have not received an independent security audit.
@@ -67,4 +80,3 @@ have not received an independent security audit.
 - secure RPC/indexer operational design and privacy review;
 - localization and accessibility review;
 - formal Tether and Foundation brand/release approval.
-

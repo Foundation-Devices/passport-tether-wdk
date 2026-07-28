@@ -23,5 +23,9 @@ template = ["gui-app", "fs-generic"]
     "SendWdkEvmAccountResponse",
     "SendWdkEvmSignTransactionResponse",
     "SendWdkRequestRejected",
+    "SubscribeWdkBtcAccountRequest",
+    "SubscribeWdkBtcSignPsbtRequest",
+    "SendWdkBtcAccountResponse",
+    "SendWdkBtcSignPsbtResponse",
     "UnpairFromEnvoy",
 ]

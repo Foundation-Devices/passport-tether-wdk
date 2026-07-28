@@ -106,6 +106,56 @@ fn golden_wdk_request_cancelled() {
     ));
 }
 
+#[test]
+fn golden_wdk_btc_account_request() {
+    assert_golden!(QuantumLinkMessage::WdkBtcAccountRequest(
+        WdkBtcAccountRequest {
+            protocol_version: WDK_PROTOCOL_VERSION,
+            request_id: vec![0x55; 16],
+            derivation_path: "m/84'/1'/0'/0/0".to_string(),
+            network: WDK_BITCOIN_TESTNET,
+        },
+    ));
+}
+
+#[test]
+fn golden_wdk_btc_account_response() {
+    assert_golden!(QuantumLinkMessage::WdkBtcAccountResponse(
+        WdkBtcAccountResponse {
+            protocol_version: WDK_PROTOCOL_VERSION,
+            request_id: vec![0x56; 16],
+            derivation_path: "m/84'/1'/0'/0/0".to_string(),
+            address: "tb1qexample".to_string(),
+            public_key: vec![0x02; 33],
+        },
+    ));
+}
+
+#[test]
+fn golden_wdk_btc_sign_psbt_request() {
+    assert_golden!(QuantumLinkMessage::WdkBtcSignPsbtRequest(
+        WdkBtcSignPsbtRequest {
+            protocol_version: WDK_PROTOCOL_VERSION,
+            request_id: vec![0x57; 16],
+            derivation_path: "m/84'/1'/0'/0/0".to_string(),
+            network: WDK_BITCOIN_TESTNET,
+            psbt: vec![0x70, 0x73, 0x62, 0x74, 0xff],
+        },
+    ));
+}
+
+#[test]
+fn golden_wdk_btc_sign_psbt_response() {
+    assert_golden!(QuantumLinkMessage::WdkBtcSignPsbtResponse(
+        WdkBtcSignPsbtResponse {
+            protocol_version: WDK_PROTOCOL_VERSION,
+            request_id: vec![0x58; 16],
+            address: "tb1qexample".to_string(),
+            signed_transaction: vec![0x02, 0x00, 0x00, 0x00],
+        },
+    ));
+}
+
 /// decode hex-encoded CBOR bytes back to a message
 fn from_hex(hex: &str) -> QuantumLinkMessage {
     let bytes: Vec<u8> = (0..hex.len())

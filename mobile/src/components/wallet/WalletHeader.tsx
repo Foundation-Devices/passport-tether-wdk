@@ -33,15 +33,6 @@ export function WalletHeader({
             <ArrowLeft size={25} color={colors.text} strokeWidth={1.8} />
           </TouchableOpacity>
         ) : null}
-      </View>
-      <View pointerEvents="none" style={styles.center}>
-        {title ? (
-          <Text style={styles.title}>{title}</Text>
-        ) : (
-          <Text style={styles.wordmark}>tether.</Text>
-        )}
-      </View>
-      <View style={[styles.side, styles.sideRight]}>
         {showPassport ? (
           <TouchableOpacity
             style={styles.passportPill}
@@ -57,6 +48,15 @@ export function WalletHeader({
             <Text style={styles.passportText}>Passport</Text>
           </TouchableOpacity>
         ) : null}
+      </View>
+      <View pointerEvents="none" style={styles.center}>
+        {title ? (
+          <Text style={styles.title}>{title}</Text>
+        ) : (
+          <Text style={styles.wordmark}>tether.</Text>
+        )}
+      </View>
+      <View style={[styles.side, styles.sideRight]}>
         {menu ? (
           <TouchableOpacity
             style={styles.iconButton}

@@ -29,7 +29,7 @@ import { toast } from 'sonner-native';
 
 export default function ReceiveScreen() {
   const insets = useSafeAreaInsets();
-  const { status, walletLoading, address, reconnect } = usePassport();
+  const { status, walletLoading, address, btcAddress, reconnect } = usePassport();
   const [tab, setTab] = useState<'tetherme' | 'blockchains'>('blockchains');
   const [assetId, setAssetId] = useState<WalletAssetId>('usdt');
   const [network, setNetwork] = useState<WalletNetwork | null>(getDefaultNetwork('usdt'));
@@ -39,7 +39,7 @@ export default function ReceiveScreen() {
 
   const asset = useMemo(() => getWalletAsset(assetId), [assetId]);
   const routeAvailable = Boolean(asset.enabled && network?.enabled);
-  const qrValue = routeAvailable ? address : null;
+  const qrValue = routeAvailable ? (assetId === 'btc' ? btcAddress : address) : null;
 
   const selectAsset = (next: WalletAsset) => {
     setAssetId(next.id);
@@ -122,7 +122,7 @@ export default function ReceiveScreen() {
               <TouchableOpacity style={styles.selector} onPress={() => setAssetSheet(true)}>
                 <AssetGlyph assetId={assetId} size={27} />
                 <Text style={styles.selectorText} numberOfLines={1}>
-                  {asset.name} {asset.symbol}
+                  {assetId === 'usdt' ? `Tether ${asset.symbol}` : asset.name}
                 </Text>
                 <ChevronDown size={17} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -199,6 +199,7 @@ export default function ReceiveScreen() {
         visible={assetSheet}
         onClose={() => setAssetSheet(false)}
         onSelect={selectAsset}
+        includeGas
       />
       <NetworkSheet
         visible={networkSheet}
@@ -221,14 +222,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   tab: {
-    minWidth: 104,
-    height: 39,
-    borderRadius: 19,
+    minWidth: 112,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabActive: { backgroundColor: 'rgba(255,255,255,0.075)' },
-  tabText: { color: colors.textTertiary, fontFamily: fonts.displayBook, fontSize: 16 },
+  tabText: { color: colors.textTertiary, fontFamily: fonts.displayBook, fontSize: 15 },
   tabTextActive: { color: colors.text },
   content: { paddingHorizontal: 20, alignItems: 'center' },
   title: {
@@ -245,13 +246,13 @@ const styles = StyleSheet.create({
   },
   selector: {
     flex: 1,
-    height: 53,
+    height: 58,
     borderRadius: 15,
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     backgroundColor: 'rgba(255,255,255,0.045)',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
   },
   selectorText: {
     flex: 1,

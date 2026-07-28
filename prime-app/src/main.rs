@@ -3,13 +3,17 @@
 
 //! Passport Prime companion for the Tether WDK Android proof of concept.
 
-use gui_app_tether_wdk::evm::{Asset, EvmWallet, PolicyError, PreparedTransaction};
+use gui_app_tether_wdk::{
+    btc::{BtcWallet, PolicyError as BtcPolicyError, PreparedTransaction as PreparedBtcTransaction},
+    evm::{Asset, EvmWallet, PolicyError, PreparedTransaction as PreparedEvmTransaction},
+};
 use quantum_link::{
     foundation_api::wdk::{WdkRequestRejected, WDK_PROTOCOL_VERSION},
     messages::{
-        SendWdkEvmAccountResponse, SendWdkEvmSignTransactionResponse, SendWdkRequestRejected,
-        SubscribeWdkEvmAccountRequest, SubscribeWdkEvmSignTransactionRequest, SubscribeWdkRequestCancelled,
-        UnpairFromEnvoy,
+        SendWdkBtcAccountResponse, SendWdkBtcSignPsbtResponse, SendWdkEvmAccountResponse,
+        SendWdkEvmSignTransactionResponse, SendWdkRequestRejected, SubscribeWdkBtcAccountRequest,
+        SubscribeWdkBtcSignPsbtRequest, SubscribeWdkEvmAccountRequest, SubscribeWdkEvmSignTransactionRequest,
+        SubscribeWdkRequestCancelled, UnpairFromEnvoy,
     },
 };
 use slint_keyos_platform::{
@@ -54,6 +58,21 @@ fn policy_message(error: &PolicyError) -> String {
     tr::lookup_id(id).to_owned()
 }
 
+fn btc_policy_message(error: &BtcPolicyError) -> String {
+    let id = match error {
+        BtcPolicyError::Protocol | BtcPolicyError::RequestId | BtcPolicyError::Psbt => {
+            TrId::ErrorInvalidRequest
+        }
+        BtcPolicyError::DerivationPath => TrId::ErrorPath,
+        BtcPolicyError::Network => TrId::ErrorChain,
+        BtcPolicyError::Inputs | BtcPolicyError::Outputs | BtcPolicyError::Address => TrId::ErrorAddress,
+        BtcPolicyError::Fee => TrId::ErrorFee,
+        BtcPolicyError::Value => TrId::ErrorValue,
+        BtcPolicyError::Signature => TrId::ErrorSignature,
+    };
+    tr::lookup_id(id).to_owned()
+}
+
 #[derive(Default, serde::Deserialize, serde::Serialize)]
 struct Settings {
     #[serde(default)]
@@ -61,10 +80,25 @@ struct Settings {
 }
 
 struct AppState {
-    wallet: Option<EvmWallet>,
-    pending: Option<PreparedTransaction>,
+    evm_wallet: Option<EvmWallet>,
+    btc_wallet: Option<BtcWallet>,
+    pending: Option<PendingTransaction>,
     settings: JsonBacked<Settings, FileSystemPermissions>,
     ql_status: QlStatus,
+}
+
+enum PendingTransaction {
+    Evm(PreparedEvmTransaction),
+    Btc(PreparedBtcTransaction),
+}
+
+impl PendingTransaction {
+    fn request_id(&self) -> &[u8] {
+        match self {
+            Self::Evm(prepared) => &prepared.request.request_id,
+            Self::Btc(prepared) => &prepared.request.request_id,
+        }
+    }
 }
 
 fn pairing_url(addr_hex: &str) -> String {
@@ -99,7 +133,8 @@ fn app_main(_cx: AppContext, ui: AppWindow) {
     let setup_complete = settings.setup_version == CURRENT_SETUP_VERSION;
     ui.global::<State>().set_page(if setup_complete { PageId::Home } else { PageId::Welcome });
     let state = StoredValue::new(AppState {
-        wallet: None,
+        evm_wallet: None,
+        btc_wallet: None,
         pending: None,
         settings,
         ql_status: QlStatus::new(worker().clone()),
@@ -115,12 +150,14 @@ fn app_main(_cx: AppContext, ui: AppWindow) {
         async move {
             match spawn_worker(async { Security::default().app_seed() }).await {
                 Ok(seed) => {
-                    let wallet = EvmWallet::new(seed);
-                    match wallet.address() {
+                    let evm_wallet = EvmWallet::new(seed);
+                    match evm_wallet.address() {
                         Ok(address) => set_address(&ui, address),
                         Err(error) => show_error(&ui, policy_message(&error)),
                     }
-                    state.borrow_mut().wallet = Some(wallet);
+                    let mut app_state = state.borrow_mut();
+                    app_state.evm_wallet = Some(evm_wallet);
+                    app_state.btc_wallet = Some(BtcWallet::new(seed));
                 }
                 Err(error) => {
                     log::error!("Tether WDK app seed is unavailable: {error:?}");
@@ -135,7 +172,9 @@ fn app_main(_cx: AppContext, ui: AppWindow) {
     monitor_connection(&ui, &state);
     monitor_bluetooth_connection(&ui);
     handle_account_requests(&ui, &state);
+    handle_btc_account_requests(&ui, &state);
     handle_signing_requests(&ui, &state);
+    handle_btc_signing_requests(&ui, &state);
     handle_cancellations(&ui, &state);
     register_callbacks(&ui, &state);
 
@@ -255,7 +294,7 @@ fn handle_account_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
             while let Some(request) = events.next().await {
                 let result = state
                     .borrow()
-                    .wallet
+                    .evm_wallet
                     .as_ref()
                     .ok_or(PolicyError::Signature)
                     .and_then(|wallet| wallet.account_response(&request));
@@ -308,7 +347,7 @@ fn handle_signing_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
                 let request_id = request.request_id.clone();
                 let result = state
                     .borrow()
-                    .wallet
+                    .evm_wallet
                     .as_ref()
                     .ok_or(PolicyError::Signature)
                     .and_then(|wallet| wallet.prepare(request));
@@ -327,10 +366,94 @@ fn handle_signing_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
                         view.set_recipient_line_two(recipient_line_two.into());
                         view.set_maximum_fee(prepared.review.maximum_fee.clone().into());
                         view.set_page(PageId::Review);
-                        state.borrow_mut().pending = Some(prepared);
+                        state.borrow_mut().pending = Some(PendingTransaction::Evm(prepared));
                     }
                     Err(error) => {
                         let message = policy_message(&error);
+                        send_rejection(request_id, 4, message.clone());
+                        show_error(&ui, message);
+                    }
+                }
+            }
+        }
+    })
+    .detach();
+}
+
+fn handle_btc_account_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
+    spawn_local({
+        let ui = ui.clone_strong();
+        let state = state.clone();
+        async move {
+            let mut events = subscribe_archive::<quantum_link_permissions::QuantumLinkPermissions, _>(
+                SubscribeWdkBtcAccountRequest,
+            );
+            while let Some(request) = events.next().await {
+                let result = state
+                    .borrow()
+                    .btc_wallet
+                    .as_ref()
+                    .ok_or(BtcPolicyError::Signature)
+                    .and_then(|wallet| wallet.account_response(&request));
+                match result {
+                    Ok(response) => {
+                        if let Err(error) =
+                            async_archive::<quantum_link_permissions::QuantumLinkPermissions, _>(
+                                SendWdkBtcAccountResponse { response },
+                            )
+                            .await
+                        {
+                            log::warn!("could not return WDK Bitcoin account response: {error:?}");
+                        }
+                    }
+                    Err(error) => {
+                        let message = btc_policy_message(&error);
+                        send_rejection(request.request_id, 4, message.clone());
+                        show_error(&ui, message);
+                    }
+                }
+            }
+        }
+    })
+    .detach();
+}
+
+fn handle_btc_signing_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
+    spawn_local({
+        let ui = ui.clone_strong();
+        let state = state.clone();
+        async move {
+            let mut events = subscribe_archive::<quantum_link_permissions::QuantumLinkPermissions, _>(
+                SubscribeWdkBtcSignPsbtRequest,
+            );
+            while let Some(request) = events.next().await {
+                if state.borrow().pending.is_some() {
+                    send_rejection(request.request_id, 8, tr::lookup_id(TrId::RequestBusy).to_owned());
+                    continue;
+                }
+                let request_id = request.request_id.clone();
+                let result = state
+                    .borrow()
+                    .btc_wallet
+                    .as_ref()
+                    .ok_or(BtcPolicyError::Signature)
+                    .and_then(|wallet| wallet.prepare(request));
+                match result {
+                    Ok(prepared) => {
+                        let view = ui.global::<State>();
+                        view.set_asset("BTC".into());
+                        view.set_amount(prepared.review.amount.clone().into());
+                        view.set_recipient(prepared.review.recipient.clone().into());
+                        let split = prepared.review.recipient.len().min(22);
+                        let (line_one, line_two) = prepared.review.recipient.split_at(split);
+                        view.set_recipient_line_one(line_one.into());
+                        view.set_recipient_line_two(line_two.into());
+                        view.set_maximum_fee(prepared.review.maximum_fee.clone().into());
+                        view.set_page(PageId::Review);
+                        state.borrow_mut().pending = Some(PendingTransaction::Btc(prepared));
+                    }
+                    Err(error) => {
+                        let message = btc_policy_message(&error);
                         send_rejection(request_id, 4, message.clone());
                         show_error(&ui, message);
                     }
@@ -354,7 +477,7 @@ fn handle_cancellations(ui: &AppWindow, state: &StoredValue<AppState>) {
                     .borrow()
                     .pending
                     .as_ref()
-                    .map(|pending| pending.request.request_id == cancelled.request_id)
+                    .map(|pending| pending.request_id() == cancelled.request_id.as_slice())
                     .unwrap_or(false);
                 if matches {
                     state.borrow_mut().pending = None;
@@ -523,35 +646,74 @@ fn register_callbacks(ui: &AppWindow, state: &StoredValue<AppState>) {
                 return;
             };
 
-            let result = state
-                .borrow()
-                .wallet
-                .as_ref()
-                .ok_or(PolicyError::Signature)
-                .and_then(|wallet| wallet.sign(&prepared));
-            match result {
-                Ok(response) => {
-                    ui.global::<State>().set_page(PageId::Result);
-                    spawn_local({
-                        let ui = ui.clone_strong();
-                        async move {
-                            if let Err(error) =
-                                async_archive::<quantum_link_permissions::QuantumLinkPermissions, _>(
-                                    SendWdkEvmSignTransactionResponse { response },
-                                )
-                                .await
-                            {
-                                log::warn!("could not return signed WDK transaction: {error:?}");
-                                show_error(&ui, tr::lookup_id(TrId::ErrorDisconnected).to_owned());
-                            }
+            match prepared {
+                PendingTransaction::Evm(prepared) => {
+                    let result = state
+                        .borrow()
+                        .evm_wallet
+                        .as_ref()
+                        .ok_or(PolicyError::Signature)
+                        .and_then(|wallet| wallet.sign(&prepared));
+                    match result {
+                        Ok(response) => {
+                            ui.global::<State>().set_page(PageId::Result);
+                            spawn_local({
+                                let ui = ui.clone_strong();
+                                async move {
+                                    if let Err(error) =
+                                        async_archive::<quantum_link_permissions::QuantumLinkPermissions, _>(
+                                            SendWdkEvmSignTransactionResponse { response },
+                                        )
+                                        .await
+                                    {
+                                        log::warn!("could not return signed WDK transaction: {error:?}");
+                                        show_error(&ui, tr::lookup_id(TrId::ErrorDisconnected).to_owned());
+                                    }
+                                }
+                            })
+                            .detach();
                         }
-                    })
-                    .detach();
+                        Err(error) => {
+                            let message = policy_message(&error);
+                            send_rejection(prepared.request.request_id, 7, message.clone());
+                            show_error(&ui, message);
+                        }
+                    }
                 }
-                Err(error) => {
-                    let message = policy_message(&error);
-                    send_rejection(prepared.request.request_id, 7, message.clone());
-                    show_error(&ui, message);
+                PendingTransaction::Btc(prepared) => {
+                    let result = state
+                        .borrow()
+                        .btc_wallet
+                        .as_ref()
+                        .ok_or(BtcPolicyError::Signature)
+                        .and_then(|wallet| wallet.sign(&prepared));
+                    match result {
+                        Ok(response) => {
+                            ui.global::<State>().set_page(PageId::Result);
+                            spawn_local({
+                                let ui = ui.clone_strong();
+                                async move {
+                                    if let Err(error) =
+                                        async_archive::<quantum_link_permissions::QuantumLinkPermissions, _>(
+                                            SendWdkBtcSignPsbtResponse { response },
+                                        )
+                                        .await
+                                    {
+                                        log::warn!(
+                                            "could not return signed WDK Bitcoin transaction: {error:?}"
+                                        );
+                                        show_error(&ui, tr::lookup_id(TrId::ErrorDisconnected).to_owned());
+                                    }
+                                }
+                            })
+                            .detach();
+                        }
+                        Err(error) => {
+                            let message = btc_policy_message(&error);
+                            send_rejection(prepared.request.request_id, 7, message.clone());
+                            show_error(&ui, message);
+                        }
+                    }
                 }
             }
         }
@@ -563,7 +725,7 @@ fn register_callbacks(ui: &AppWindow, state: &StoredValue<AppState>) {
         move || {
             if let Some(prepared) = state.borrow_mut().pending.take() {
                 send_rejection(
-                    prepared.request.request_id,
+                    prepared.request_id().to_vec(),
                     5,
                     tr::lookup_id(TrId::RequestRejected).to_owned(),
                 );

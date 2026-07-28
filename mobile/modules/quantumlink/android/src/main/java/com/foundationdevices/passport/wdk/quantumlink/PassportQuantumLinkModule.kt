@@ -32,6 +32,8 @@ import uniffi.quantumlink_mobile.buildUnpairingRequest
 import uniffi.quantumlink_mobile.buildUnpairingResponse
 import uniffi.quantumlink_mobile.buildWdkEvmAccountRequest
 import uniffi.quantumlink_mobile.buildWdkEvmSignTransactionRequest
+import uniffi.quantumlink_mobile.buildWdkBtcAccountRequest
+import uniffi.quantumlink_mobile.buildWdkBtcSignPsbtRequest
 import uniffi.quantumlink_mobile.buildWdkRequestCancelled
 import uniffi.quantumlink_mobile.generateIdentity
 import uniffi.quantumlink_mobile.identityXid
@@ -74,8 +76,10 @@ class PassportQuantumLinkModule : Module() {
   }
 
   private enum class RequestKind {
-    ACCOUNT,
-    SIGN
+    EVM_ACCOUNT,
+    EVM_SIGN,
+    BTC_ACCOUNT,
+    BTC_SIGN
   }
 
   private data class PendingRequest(
@@ -176,6 +180,17 @@ class PassportQuantumLinkModule : Module() {
         promise: Promise
       ->
       signEvmTransaction(request, promise)
+    }
+
+    AsyncFunction("getBtcAccount") { path: String, requestId: String, promise: Promise ->
+      getBtcAccount(path, requestId, promise)
+    }
+
+    AsyncFunction("signBtcPsbt") {
+        request: Map<String, Any?>,
+        promise: Promise
+      ->
+      signBtcPsbt(request, promise)
     }
 
     AsyncFunction("cancel") { requestId: String ->
@@ -358,6 +373,19 @@ class PassportQuantumLinkModule : Module() {
       }
       check(pairPromise == null) { "A Passport Prime pairing request is already pending" }
       val primeXid = Base64.decode(primeXidBase64, Base64.NO_WRAP)
+
+      // A reflashed or factory-reset Prime presents a new identity, so the
+      // stored relationship points at a peer that no longer exists. connect()
+      // has already pinned the session to that dead XID; drop the record now
+      // that the operator has scanned a different one, otherwise the only
+      // symptom of the stale pin is a bare 20s timeout.
+      val previousXid = publicPrefs().getString(KEY_PRIME_XID, null)
+      val replacingStalePairing = previousXid != null && previousXid != primeXidBase64
+      if (replacingStalePairing) {
+        trace("pair_clear_stale_local", "previous_identity_differs")
+        clearPairing()
+      }
+
       requireNotNull(session) { "QuantumLink session is unavailable" }
         .setExpectedPeer(primeXid)
       pendingPrimeXid = primeXidBase64
@@ -378,13 +406,32 @@ class PassportQuantumLinkModule : Module() {
         mainHandler.postDelayed(retry, delay)
       }
 
+      // Passport silently ignores a pairing request while it still holds a
+      // connection record, so a timeout here almost always means leftover
+      // state rather than range or radio trouble. Name the actual remedy.
       val timeout = Runnable {
         if (pairPromise === promise) {
-          trace("pair_timeout")
+          trace("pair_timeout", if (replacingStalePairing) "stale_peer" else "no_response")
           cancelPairTimers()
           pairPromise = null
           pendingPrimeXid = null
-          promise.reject("pair_timeout", "Passport Prime pairing timed out", null)
+          if (replacingStalePairing) {
+            promise.reject(
+              "pair_stale_peer",
+              "Passport Prime did not answer. This phone was paired to a different " +
+                "Passport identity, and Passport may still hold that connection. " +
+                "Remove the Tether WDK connection in Passport's settings, then scan again.",
+              null
+            )
+          } else {
+            promise.reject(
+              "pair_timeout",
+              "Passport Prime did not answer the pairing request. If Passport already " +
+                "lists a Tether WDK connection, remove it in Passport's settings and " +
+                "scan again.",
+              null
+            )
+          }
         }
       }
       pairTimeout = timeout
@@ -448,7 +495,7 @@ class PassportQuantumLinkModule : Module() {
     try {
       val primeXid = requireReady()
       val requestIdBytes = requestIdBytes(requestId)
-      registerPending(requestId, RequestKind.ACCOUNT, promise, ACCOUNT_TIMEOUT_MS)
+      registerPending(requestId, RequestKind.EVM_ACCOUNT, promise, ACCOUNT_TIMEOUT_MS)
       emitProgress(requestId, "sending")
       val frames = buildWdkEvmAccountRequest(
         identity(),
@@ -470,7 +517,7 @@ class PassportQuantumLinkModule : Module() {
     val requestId = request.requiredString("requestId")
     try {
       val primeXid = requireReady()
-      registerPending(requestId, RequestKind.SIGN, promise)
+      registerPending(requestId, RequestKind.EVM_SIGN, promise)
       emitProgress(requestId, "sending")
       enqueue(
         buildWdkEvmSignTransactionRequest(
@@ -493,6 +540,51 @@ class PassportQuantumLinkModule : Module() {
     } catch (error: Exception) {
       removePending(requestId)
       promise.reject("sign_request", error.message, error)
+    }
+  }
+
+  @SuppressLint("MissingPermission")
+  private fun getBtcAccount(path: String, requestId: String, promise: Promise) {
+    try {
+      val primeXid = requireReady()
+      registerPending(requestId, RequestKind.BTC_ACCOUNT, promise, ACCOUNT_TIMEOUT_MS)
+      emitProgress(requestId, "sending")
+      enqueue(
+        buildWdkBtcAccountRequest(
+          identity(),
+          primeXid,
+          requestIdBytes(requestId),
+          path,
+          1u.toUByte()
+        )
+      )
+    } catch (error: Exception) {
+      removePending(requestId)
+      promise.reject("btc_account_request", error.message, error)
+    }
+  }
+
+  @SuppressLint("MissingPermission")
+  private fun signBtcPsbt(request: Map<String, Any?>, promise: Promise) {
+    val requestId = request.requiredString("requestId")
+    try {
+      val primeXid = requireReady()
+      registerPending(requestId, RequestKind.BTC_SIGN, promise)
+      emitProgress(requestId, "sending")
+      enqueue(
+        buildWdkBtcSignPsbtRequest(
+          identity(),
+          primeXid,
+          requestIdBytes(requestId),
+          request.requiredString("path"),
+          1u.toUByte(),
+          hexToBytes(request.requiredString("psbt"))
+        )
+      )
+      emitProgress(requestId, "reviewing")
+    } catch (error: Exception) {
+      removePending(requestId)
+      promise.reject("btc_sign_request", error.message, error)
     }
   }
 
@@ -822,7 +914,7 @@ class PassportQuantumLinkModule : Module() {
         "WdkEvmAccountResponse" -> {
           val requestId = bytesToHex(message.requestId)
           val pending = removePending(requestId) ?: return
-          if (pending.kind != RequestKind.ACCOUNT) {
+          if (pending.kind != RequestKind.EVM_ACCOUNT) {
             pending.promise.reject("response_mismatch", "Unexpected account response", null)
             return
           }
@@ -840,8 +932,44 @@ class PassportQuantumLinkModule : Module() {
         "WdkEvmSignTransactionResponse" -> {
           val requestId = bytesToHex(message.requestId)
           val pending = removePending(requestId) ?: return
-          if (pending.kind != RequestKind.SIGN) {
+          if (pending.kind != RequestKind.EVM_SIGN) {
             pending.promise.reject("response_mismatch", "Unexpected signing response", null)
+            return
+          }
+          emitProgress(requestId, "signed")
+          pending.promise.resolve(
+            mapOf(
+              "protocolVersion" to 1,
+              "requestId" to requestId,
+              "address" to message.address,
+              "signedTransaction" to bytesToHex(message.signedTransaction, true)
+            )
+          )
+        }
+
+        "WdkBtcAccountResponse" -> {
+          val requestId = bytesToHex(message.requestId)
+          val pending = removePending(requestId) ?: return
+          if (pending.kind != RequestKind.BTC_ACCOUNT) {
+            pending.promise.reject("response_mismatch", "Unexpected Bitcoin account response", null)
+            return
+          }
+          pending.promise.resolve(
+            mapOf(
+              "protocolVersion" to 1,
+              "requestId" to requestId,
+              "path" to message.derivationPath,
+              "address" to message.address,
+              "publicKey" to bytesToHex(message.publicKey, true)
+            )
+          )
+        }
+
+        "WdkBtcSignPsbtResponse" -> {
+          val requestId = bytesToHex(message.requestId)
+          val pending = removePending(requestId) ?: return
+          if (pending.kind != RequestKind.BTC_SIGN) {
+            pending.promise.reject("response_mismatch", "Unexpected Bitcoin signing response", null)
             return
           }
           emitProgress(requestId, "signed")

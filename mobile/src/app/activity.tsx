@@ -3,7 +3,7 @@ import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { SEPOLIA_EXPLORER, usePassport } from '@/passport/PassportProvider';
-import { ArrowUpRight, ExternalLink, Repeat2 } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, ExternalLink, Repeat2 } from 'lucide-react-native';
 import React from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,24 +36,41 @@ export default function ActivityScreen() {
               <TouchableOpacity
                 key={item.hash}
                 style={styles.row}
-                onPress={() => Linking.openURL(`${SEPOLIA_EXPLORER}/tx/${item.hash}`)}
+                onPress={() =>
+                  Linking.openURL(
+                    item.asset === 'BTC'
+                      ? `https://mempool.space/testnet/tx/${item.hash}`
+                      : `${SEPOLIA_EXPLORER}/tx/${item.hash}`
+                  )
+                }
               >
                 <View style={styles.iconWrap}>
-                  <AssetGlyph assetId={item.asset === 'ETH' ? 'eth' : 'usdt'} size={43} />
+                  <AssetGlyph
+                    assetId={item.asset === 'BTC' ? 'btc' : item.asset === 'ETH' ? 'eth' : 'usdt'}
+                    size={43}
+                  />
                   <View style={styles.direction}>
-                    <ArrowUpRight size={12} color={colors.background} strokeWidth={2.5} />
+                    {item.direction === 'in' ? (
+                      <ArrowDownLeft size={12} color={colors.background} strokeWidth={2.5} />
+                    ) : (
+                      <ArrowUpRight size={12} color={colors.background} strokeWidth={2.5} />
+                    )}
                   </View>
                 </View>
                 <View style={styles.copy}>
-                  <Text style={styles.rowTitle}>Sent {item.asset}</Text>
+                  <Text style={styles.rowTitle}>
+                    {item.direction === 'in' ? 'Received' : 'Sent'} {item.asset}
+                  </Text>
                   <Text style={styles.rowDetail}>
-                    {new Date(item.timestamp).toLocaleDateString()} · {short(item.recipient)}
+                    {new Date(item.timestamp).toLocaleDateString()} ·{' '}
+                    {item.recipient ? short(item.recipient) : '—'}
                   </Text>
                   <Text style={styles.hash}>{short(item.hash)}</Text>
                 </View>
                 <View style={styles.amountWrap}>
                   <Text style={styles.amount}>
-                    −{item.amount} {item.asset}
+                    {item.direction === 'in' ? '+' : '−'}
+                    {item.amount} {item.asset}
                   </Text>
                   <ExternalLink size={15} color={colors.textTertiary} />
                 </View>
@@ -65,7 +82,7 @@ export default function ActivityScreen() {
             <Repeat2 size={48} color={colors.text} strokeWidth={1.45} />
             <Text style={styles.emptyTitle}>Nothing here yet…</Text>
             <Text style={styles.emptyDetail}>
-              You haven’t made any transactions. Once you do, they’ll show up here.
+              Once you send or receive, your transactions will show up here.
             </Text>
           </View>
         )}

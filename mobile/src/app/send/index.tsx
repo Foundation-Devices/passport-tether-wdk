@@ -1,4 +1,4 @@
-import { AssetGlyph } from '@/components/wallet/AssetGlyph';
+import { AssetGlyph, NetworkGlyph } from '@/components/wallet/AssetGlyph';
 import { AssetSheet, NetworkSheet } from '@/components/wallet/AssetNetworkSheets';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { colors } from '@/constants/colors';
@@ -61,7 +61,11 @@ export default function SendFundsScreen() {
 
         <Text style={styles.label}>Network</Text>
         <TouchableOpacity style={styles.selector} onPress={() => setNetworkSheet(true)}>
-          <View style={styles.networkMark} />
+          {network ? (
+            <NetworkGlyph networkId={network.id} size={44} />
+          ) : (
+            <View style={styles.networkMark} />
+          )}
           <View style={styles.selectorCopy}>
             <Text style={styles.selectorTitle}>{network?.chainLabel ?? 'Choose Network'}</Text>
             <Text style={styles.selectorDetail}>

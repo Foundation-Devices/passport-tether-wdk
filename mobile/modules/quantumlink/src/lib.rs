@@ -19,7 +19,8 @@ use foundation_api::pairing::{PairingRequest, UnpairingRequest, UnpairingRespons
 use foundation_api::quantum_link::{ARIDCache, QuantumLink, QuantumLinkIdentity};
 use foundation_api::status::Heartbeat;
 use foundation_api::wdk::{
-    WdkEvmAccountRequest, WdkEvmSignTransactionRequest, WdkRequestCancelled, WDK_PROTOCOL_VERSION,
+    WdkBtcAccountRequest, WdkBtcSignPsbtRequest, WdkEvmAccountRequest,
+    WdkEvmSignTransactionRequest, WdkRequestCancelled, WDK_BITCOIN_TESTNET, WDK_PROTOCOL_VERSION,
     WDK_SEPOLIA_CHAIN_ID,
 };
 
@@ -31,6 +32,9 @@ const MAX_CALLDATA_LEN: usize = 4_096;
 const MAX_SIGNED_TRANSACTION_LEN: usize = 8_192;
 const MAX_DECIMAL_LEN: usize = 78;
 const EVM_ACCOUNT_PATH: &str = "m/44'/60'/0'/0/0";
+const BTC_ACCOUNT_PATH: &str = "m/84'/1'/0'/0/0";
+const MAX_PSBT_LEN: usize = 65_536;
+const MAX_SIGNED_BTC_TRANSACTION_LEN: usize = 100_000;
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum QlError {
@@ -225,6 +229,57 @@ pub fn build_wdk_evm_sign_transaction_request(
     )
 }
 
+/// Ask Passport for the public BIP-84 Bitcoin testnet account.
+#[uniffi::export]
+pub fn build_wdk_btc_account_request(
+    identity: Vec<u8>,
+    prime_xid: Vec<u8>,
+    request_id: Vec<u8>,
+    derivation_path: String,
+    network: u8,
+) -> Result<Vec<Vec<u8>>, QlError> {
+    validate_btc_request(&request_id, &derivation_path, network)?;
+    seal_envoy(
+        &identity,
+        &prime_xid,
+        QuantumLinkMessage::WdkBtcAccountRequest(WdkBtcAccountRequest {
+            protocol_version: WDK_PROTOCOL_VERSION,
+            request_id,
+            derivation_path,
+            network,
+        }),
+    )
+}
+
+/// Send a complete PSBT for Passport Prime to validate, render and sign.
+#[uniffi::export]
+pub fn build_wdk_btc_sign_psbt_request(
+    identity: Vec<u8>,
+    prime_xid: Vec<u8>,
+    request_id: Vec<u8>,
+    derivation_path: String,
+    network: u8,
+    psbt: Vec<u8>,
+) -> Result<Vec<Vec<u8>>, QlError> {
+    validate_btc_request(&request_id, &derivation_path, network)?;
+    if psbt.is_empty() || psbt.len() > MAX_PSBT_LEN {
+        return Err(QlError::Failed(
+            "Bitcoin PSBT is invalid or too large".into(),
+        ));
+    }
+    seal_envoy(
+        &identity,
+        &prime_xid,
+        QuantumLinkMessage::WdkBtcSignPsbtRequest(WdkBtcSignPsbtRequest {
+            protocol_version: WDK_PROTOCOL_VERSION,
+            request_id,
+            derivation_path,
+            network,
+            psbt,
+        }),
+    )
+}
+
 /// Cancel a pending review request.
 #[uniffi::export]
 pub fn build_wdk_request_cancelled(
@@ -369,6 +424,44 @@ impl QlSession {
                 decoded.signed_transaction = response.signed_transaction;
                 decoded
             }
+            QuantumLinkMessage::WdkBtcAccountResponse(response) => {
+                validate_response_version(response.protocol_version)?;
+                validate_request_id(&response.request_id)?;
+                if response.derivation_path != BTC_ACCOUNT_PATH {
+                    return Err(QlError::Failed(
+                        "Passport returned an unexpected Bitcoin derivation path".into(),
+                    ));
+                }
+                validate_btc_address(&response.address)?;
+                if response.public_key.len() != 33 {
+                    return Err(QlError::Failed(
+                        "Passport returned an invalid Bitcoin public key".into(),
+                    ));
+                }
+                let mut decoded = DecodedMessage::kind("WdkBtcAccountResponse");
+                decoded.request_id = response.request_id;
+                decoded.derivation_path = response.derivation_path;
+                decoded.address = response.address;
+                decoded.public_key = response.public_key;
+                decoded
+            }
+            QuantumLinkMessage::WdkBtcSignPsbtResponse(response) => {
+                validate_response_version(response.protocol_version)?;
+                validate_request_id(&response.request_id)?;
+                validate_btc_address(&response.address)?;
+                if response.signed_transaction.is_empty()
+                    || response.signed_transaction.len() > MAX_SIGNED_BTC_TRANSACTION_LEN
+                {
+                    return Err(QlError::Failed(
+                        "Passport returned an invalid Bitcoin transaction".into(),
+                    ));
+                }
+                let mut decoded = DecodedMessage::kind("WdkBtcSignPsbtResponse");
+                decoded.request_id = response.request_id;
+                decoded.address = response.address;
+                decoded.signed_transaction = response.signed_transaction;
+                decoded
+            }
             QuantumLinkMessage::WdkRequestRejected(response) => {
                 validate_response_version(response.protocol_version)?;
                 validate_request_id(&response.request_id)?;
@@ -419,6 +512,35 @@ fn validate_request(
 fn validate_request_id(request_id: &[u8]) -> Result<(), QlError> {
     if request_id.len() != REQUEST_ID_LEN {
         return Err(QlError::Failed("request ID must be 128 bits".into()));
+    }
+    Ok(())
+}
+
+fn validate_btc_request(
+    request_id: &[u8],
+    derivation_path: &str,
+    network: u8,
+) -> Result<(), QlError> {
+    validate_request_id(request_id)?;
+    if derivation_path != BTC_ACCOUNT_PATH {
+        return Err(QlError::Failed(
+            "unsupported Bitcoin derivation path".into(),
+        ));
+    }
+    if network != WDK_BITCOIN_TESTNET {
+        return Err(QlError::Failed("unsupported Bitcoin network".into()));
+    }
+    Ok(())
+}
+
+fn validate_btc_address(address: &str) -> Result<(), QlError> {
+    if !address.starts_with("tb1q")
+        || !(42..=62).contains(&address.len())
+        || !address
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+    {
+        return Err(QlError::Failed("invalid Bitcoin testnet address".into()));
     }
     Ok(())
 }
@@ -621,12 +743,14 @@ mod tests {
         for frame in frames(&envelope.to_cbor_data()) {
             decoded = session.feed(frame).unwrap().or(decoded);
         }
-        assert_eq!(decoded.expect("heartbeat should reassemble").kind, "Heartbeat");
-        assert!(!build_heartbeat_response(
-            phone.to_bytes(),
-            passport.xid_document.to_cbor_data()
-        )
-        .unwrap()
-        .is_empty());
+        assert_eq!(
+            decoded.expect("heartbeat should reassemble").kind,
+            "Heartbeat"
+        );
+        assert!(
+            !build_heartbeat_response(phone.to_bytes(), passport.xid_document.to_cbor_data())
+                .unwrap()
+                .is_empty()
+        );
     }
 }

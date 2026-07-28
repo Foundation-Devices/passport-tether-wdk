@@ -38,6 +38,8 @@ cp "$binding" "$android_binding_output/uniffi/quantumlink_mobile/quantumlink_mob
 echo "Verifying WDK exports"
 grep -q "buildWdkEvmAccountRequest" "$binding"
 grep -q "buildWdkEvmSignTransactionRequest" "$binding"
+grep -q "buildWdkBtcAccountRequest" "$binding"
+grep -q "buildWdkBtcSignPsbtRequest" "$binding"
 grep -q "buildWdkRequestCancelled" "$binding"
 grep -q "buildUnpairingRequest" "$binding"
 grep -q "buildUnpairingResponse" "$binding"

@@ -29,7 +29,7 @@ production wallet:
 
 | Asset | Visible network choices | POC state |
 | --- | --- | --- |
-| BTC | Bitcoin Testnet | Listed, disabled |
+| BTC | Bitcoin Testnet | Enabled |
 | USD₮ | Ethereum, Plasma, Polygon, Arbitrum, Tron | Ethereum Sepolia enabled |
 | USA₮ | No documented public test deployment | Listed, disabled |
 | XAU₮ | No documented public test deployment | Listed, disabled |
@@ -38,21 +38,25 @@ production wallet:
 Disabled routes are deliberate. The application never invents a token
 deployment, balance, receiving address, or signing capability.
 
-## Why Bitcoin is not enabled yet
+## Bitcoin hardware-signer boundary
 
 The inspected WDK Bitcoin module constructs `WalletManagerBtc` from a BIP-39
 seed and signs inside `WalletAccountBtc`. It does not expose the EVM module's
 external-signer boundary. Passing a phone-held seed would violate this
 repository's core security rule.
 
-Enabling Bitcoin requires a separate reviewed protocol milestone:
+The POC therefore uses WDK's `WalletAccountReadOnlyBtc` for testnet balance,
+fee estimation, UTXO selection, and spend planning, but never instantiates a
+seeded WDK Bitcoin account. The phone converts the WDK plan to a PSBT.
+Passport Prime derives `m/84'/1'/0'/0/0`, verifies that every input belongs to
+that account, permits one recipient plus optional same-account change, checks
+the fee and values, renders the authoritative review, and returns a finalized
+transaction. The phone verifies every input and output against the original
+PSBT before broadcast.
 
-1. add a hardware-signer interface to a reviewed WDK Bitcoin fork;
-2. define canonical PSBT/transaction messages over QuantumLink;
-3. derive the BIP-84 account only on Passport Prime;
-4. independently parse outputs, change, and fees on Passport Prime;
-5. return signatures without exposing key material; and
-6. add full hardware regression coverage.
+This is an explicit hardware signer adapter around the published WDK
+read-only/account-planning surface, not a claim that the upstream BTC module
+natively supports external signers.
 
 ## Preserved Passport behavior
 
@@ -62,7 +66,7 @@ owned by the existing implementation:
 - onboarding and camera/Bluetooth permission handling;
 - static QR plus animated identity QR pairing;
 - exact-device reconnect, disconnect, unpair, and local forget;
-- WDK EVM fee quote, transaction construction, and broadcast;
+- WDK EVM transaction construction and WDK BTC fee/coin selection;
 - canonical QuantumLink transaction requests;
 - Passport Prime policy validation and user review;
 - returned-signature verification; and

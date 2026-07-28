@@ -251,7 +251,7 @@ component NetworkPill inherits Rectangle {
     Text {
         width: parent.width;
         height: parent.height;
-        text: TR2.lookup(TrId.HomeNetworkBadge);
+        text: State.asset == "BTC" ? "BITCOIN TESTNET" : TR2.lookup(TrId.HomeNetworkBadge);
         color: Brand.text;
         font-size: 14px;
         font-weight: 750;
@@ -1079,6 +1079,10 @@ component AddressPage inherits BasePage {
             }
             HorizontalLayout {
                 alignment: center;
+                // Padding rather than spacer rows: the parent layout would add
+                // its own 8px gap around an extra child and crowd the code again.
+                padding-top: 14px;
+                padding-bottom: 14px;
                 if State.address != "": Rectangle {
                     width: 300px;
                     height: 300px;
@@ -1097,14 +1101,14 @@ component AddressPage inherits BasePage {
                 }
             }
             Rectangle {
-                height: 94px;
+                height: 110px;
                 border-radius: 18px;
                 background: Brand.card;
                 border-width: 1px;
                 border-color: Brand.border;
                 Text {
                     x: 16px;
-                    y: 10px;
+                    y: 12px;
                     width: parent.width - 32px;
                     height: 22px;
                     text: TR2.lookup(TrId.HomeAddress);
@@ -1114,12 +1118,14 @@ component AddressPage inherits BasePage {
                 }
                 Text {
                     x: 16px;
-                    y: 34px;
+                    y: 38px;
                     width: parent.width - 32px;
-                    height: 50px;
+                    height: 60px;
+                    // 22 monospace chars at 24px is ~317px inside the 404px
+                    // content box, so the split address still clears the card.
                     text: State.address-line-one + "\n" + State.address-line-two;
                     color: Brand.text;
-                    font-size: 18px;
+                    font-size: 24px;
                     font-family: "monospace";
                     font-weight: 650;
                     vertical-alignment: center;
@@ -1448,7 +1454,10 @@ component ReviewPage inherits BasePage {
             }
             DetailCard { label: TR2.lookup(TrId.ReviewAmount); value: State.amount + " " + State.asset; }
             AddressDetailCard { }
-            DetailCard { label: TR2.lookup(TrId.ReviewMaximumFee); value: State.maximum-fee + " ETH"; }
+            DetailCard {
+                label: TR2.lookup(TrId.ReviewMaximumFee);
+                value: State.maximum-fee + (State.asset == "BTC" ? " BTC" : " ETH");
+            }
             Text {
                 text: TR2.lookup(TrId.ReviewPolicy);
                 color: Brand.muted;
