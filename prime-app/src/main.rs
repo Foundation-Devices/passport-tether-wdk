@@ -356,7 +356,7 @@ fn handle_signing_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
                         let view = ui.global::<State>();
                         view.set_asset(match prepared.review.asset {
                             Asset::Eth => SharedString::from("ETH"),
-                            Asset::Usdt => SharedString::from("USDT"),
+                            Asset::Usdt => SharedString::from("USD₮"),
                         });
                         view.set_amount(prepared.review.amount.clone().into());
                         view.set_recipient(prepared.review.recipient.clone().into());

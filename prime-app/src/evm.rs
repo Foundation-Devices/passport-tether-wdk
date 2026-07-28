@@ -191,7 +191,7 @@ impl EvmWallet {
 
         Ok(PreparedTransaction {
             request,
-            review: Review { asset, amount, recipient, maximum_fee: format_units(total_fee, 18) },
+            review: Review { asset, amount, recipient, maximum_fee: format_fee_ceil(total_fee) },
         })
     }
 
@@ -405,6 +405,18 @@ fn length_prefix(length: usize, short_base: u8, long_base: u8) -> Vec<u8> {
     prefix
 }
 
+/// Wei-exact fees render as eighteen decimals, which is unreadable on the
+/// review screen. Shorten to eight, always rounding *up*: this is the maximum
+/// the user is authorising, so the figure on screen must never be lower than
+/// what the transaction can actually spend, and a non-zero fee must never
+/// display as zero. Eight decimals keeps several significant digits on typical
+/// Sepolia gas costs, where six would collapse them to a single one.
+fn format_fee_ceil(value_wei: u128) -> String {
+    const SCALE: u128 = 10_000_000_000; // 18 decimals down to 8
+    let ceiled = value_wei.div_ceil(SCALE);
+    format_units(ceiled, 8)
+}
+
 fn format_units(value: u128, decimals: usize) -> String {
     let mut digits = value.to_string();
     if decimals == 0 {
@@ -429,6 +441,22 @@ mod tests {
     use super::*;
 
     const SEED: [u8; 32] = [0x42; 32];
+
+    #[test]
+    fn displayed_maximum_fee_never_understates_the_authorised_amount() {
+        // The real fee from a Sepolia USD~T transfer, which rendered as
+        // 0.000099281419373928 before this shortened it.
+        assert_eq!(format_fee_ceil(99_281_419_373_928), "0.00009929");
+
+        // Rounding is upward, so the figure on screen is never lower than what
+        // the transaction can spend, and dust never displays as zero.
+        assert_eq!(format_fee_ceil(1), "0.00000001");
+        assert_eq!(format_fee_ceil(10_000_000_001), "0.00000002");
+
+        // Exact multiples stay exact, and a genuinely zero fee stays zero.
+        assert_eq!(format_fee_ceil(20_000_000_000), "0.00000002");
+        assert_eq!(format_fee_ceil(0), "0.0");
+    }
 
     fn base_request() -> WdkEvmSignTransactionRequest {
         let wallet = EvmWallet::new(SEED);
