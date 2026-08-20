@@ -7,6 +7,7 @@ use gui_app_tether_wdk::{
     btc::{BtcWallet, PolicyError as BtcPolicyError, PreparedTransaction as PreparedBtcTransaction},
     evm::{Asset, EvmWallet, PolicyError, PreparedTransaction as PreparedEvmTransaction},
 };
+#[cfg(feature = "quantum-link")]
 use quantum_link::{
     foundation_api::wdk::{WdkRequestRejected, WDK_PROTOCOL_VERSION},
     messages::{
@@ -27,10 +28,12 @@ use slint_keyos_platform::{
 use crate::fs_permissions::FileSystemPermissions;
 
 security::use_api!();
+#[cfg(feature = "quantum-link")]
 bt::use_api!();
+#[cfg(feature = "quantum-link")]
 quantum_link::use_api!();
 
-app!("Tether WDK");
+app!("Tether Wallet");
 
 const CURRENT_SETUP_VERSION: u8 = 1;
 
@@ -84,6 +87,7 @@ struct AppState {
     btc_wallet: Option<BtcWallet>,
     pending: Option<PendingTransaction>,
     settings: JsonBacked<Settings, FileSystemPermissions>,
+    #[cfg(feature = "quantum-link")]
     ql_status: QlStatus,
 }
 
@@ -101,6 +105,7 @@ impl PendingTransaction {
     }
 }
 
+#[cfg(feature = "quantum-link")]
 fn pairing_url(addr_hex: &str) -> String {
     format!("https://qr.foundation.xyz/?p={addr_hex}&c=0&o=1&n=Passport%20Prime")
 }
@@ -137,6 +142,7 @@ fn app_main(_cx: AppContext, ui: AppWindow) {
         btc_wallet: None,
         pending: None,
         settings,
+        #[cfg(feature = "quantum-link")]
         ql_status: QlStatus::new(worker().clone()),
     });
 
@@ -168,25 +174,38 @@ fn app_main(_cx: AppContext, ui: AppWindow) {
     })
     .detach();
 
+    #[cfg(feature = "quantum-link")]
     start_pairing_ui(&ui);
+    #[cfg(feature = "quantum-link")]
     monitor_connection(&ui, &state);
+    #[cfg(feature = "quantum-link")]
     monitor_bluetooth_connection(&ui);
+    #[cfg(feature = "quantum-link")]
     handle_account_requests(&ui, &state);
+    #[cfg(feature = "quantum-link")]
     handle_btc_account_requests(&ui, &state);
+    #[cfg(feature = "quantum-link")]
     handle_signing_requests(&ui, &state);
+    #[cfg(feature = "quantum-link")]
     handle_btc_signing_requests(&ui, &state);
+    #[cfg(feature = "quantum-link")]
     handle_cancellations(&ui, &state);
     register_callbacks(&ui, &state);
 
     ui.run().expect("UI running");
 }
 
+#[cfg(feature = "quantum-link")]
 fn start_pairing_ui(ui: &AppWindow) {
     let mut bt = BluetoothApi::default();
     if let Err(error) = bt.enable_ble() {
         log::warn!("could not enable BLE: {error:?}");
     }
 
+    // The pairing QR carries the QuantumLink identity document, so it only
+    // exists when the companion link is compiled in. Without it the app still
+    // derives and shows its addresses; it just cannot be paired to a phone.
+    #[cfg(feature = "quantum-link")]
     spawn_local({
         let ui = ui.clone_strong();
         async move {
@@ -215,6 +234,7 @@ fn start_pairing_ui(ui: &AppWindow) {
     .detach();
 }
 
+#[cfg(feature = "quantum-link")]
 fn monitor_connection(ui: &AppWindow, state: &StoredValue<AppState>) {
     spawn_local({
         let ui = ui.clone_strong();
@@ -257,6 +277,7 @@ fn monitor_connection(ui: &AppWindow, state: &StoredValue<AppState>) {
 /// Poll the BLE controller's current state so the transition from the static
 /// connection QR to the animated QuantumLink identity QR cannot miss a
 /// short-lived subscription event.
+#[cfg(feature = "quantum-link")]
 fn monitor_bluetooth_connection(ui: &AppWindow) {
     spawn_local({
         let ui = ui.clone_strong();
@@ -283,6 +304,7 @@ fn monitor_bluetooth_connection(ui: &AppWindow) {
     .detach();
 }
 
+#[cfg(feature = "quantum-link")]
 fn handle_account_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
     spawn_local({
         let ui = ui.clone_strong();
@@ -330,6 +352,7 @@ fn handle_account_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
     .detach();
 }
 
+#[cfg(feature = "quantum-link")]
 fn handle_signing_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
     spawn_local({
         let ui = ui.clone_strong();
@@ -380,6 +403,7 @@ fn handle_signing_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
     .detach();
 }
 
+#[cfg(feature = "quantum-link")]
 fn handle_btc_account_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
     spawn_local({
         let ui = ui.clone_strong();
@@ -418,6 +442,7 @@ fn handle_btc_account_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
     .detach();
 }
 
+#[cfg(feature = "quantum-link")]
 fn handle_btc_signing_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
     spawn_local({
         let ui = ui.clone_strong();
@@ -464,6 +489,7 @@ fn handle_btc_signing_requests(ui: &AppWindow, state: &StoredValue<AppState>) {
     .detach();
 }
 
+#[cfg(feature = "quantum-link")]
 fn handle_cancellations(ui: &AppWindow, state: &StoredValue<AppState>) {
     spawn_local({
         let ui = ui.clone_strong();
@@ -488,6 +514,51 @@ fn handle_cancellations(ui: &AppWindow, state: &StoredValue<AppState>) {
     })
     .detach();
 }
+
+/// Ask the companion to drop this pairing.
+///
+/// `UnpairFromEnvoy` is a QuantumLink message, so without the companion link
+/// there is no pairing to drop and this succeeds without doing anything. That
+/// keeps the disconnect flow identical in both builds.
+#[cfg(feature = "quantum-link")]
+async fn unpair_from_companion() -> Result<(), String> {
+    async_archive::<quantum_link_permissions::QuantumLinkPermissions, _>(UnpairFromEnvoy)
+        .await
+        .map_err(|error| format!("{error:?}"))
+}
+
+#[cfg(not(feature = "quantum-link"))]
+async fn unpair_from_companion() -> Result<(), String> {
+    Ok(())
+}
+
+/// Tear down the Bluetooth link after unpairing, then wait for the radio to
+/// report itself disconnected. Without the companion link there is no radio to
+/// tear down, so this returns immediately.
+#[cfg(feature = "quantum-link")]
+async fn drop_companion_radio_link() {
+    spawn_worker(async {
+        let mut bt = BluetoothApi::default();
+        if bt.state().map(|state| state.is_connected()).unwrap_or(false) {
+            let _ = bt.disconnect();
+        }
+    })
+    .await;
+
+    for _ in 0..20 {
+        let connected = spawn_worker(async {
+            BluetoothApi::default().state().map(|state| state.is_connected()).unwrap_or(false)
+        })
+        .await;
+        if !connected {
+            break;
+        }
+        sleep(std::time::Duration::from_millis(100)).await;
+    }
+}
+
+#[cfg(not(feature = "quantum-link"))]
+async fn drop_companion_radio_link() {}
 
 fn register_callbacks(ui: &AppWindow, state: &StoredValue<AppState>) {
     ui.global::<Callbacks>().on_welcome_continue({
@@ -536,31 +607,11 @@ fn register_callbacks(ui: &AppWindow, state: &StoredValue<AppState>) {
             spawn_local({
                 let ui = ui.clone_strong();
                 async move {
-                    if let Err(error) =
-                        async_archive::<quantum_link_permissions::QuantumLinkPermissions, _>(UnpairFromEnvoy)
-                            .await
-                    {
-                        log::info!("no previous QuantumLink pairing to replace: {error:?}");
+                    if let Err(error) = unpair_from_companion().await {
+                        log::info!("no previous pairing to replace: {error}");
                     }
 
-                    spawn_worker(async {
-                        let mut bt = BluetoothApi::default();
-                        if bt.state().map(|state| state.is_connected()).unwrap_or(false) {
-                            let _ = bt.disconnect();
-                        }
-                    })
-                    .await;
-
-                    for _ in 0..20 {
-                        let connected = spawn_worker(async {
-                            BluetoothApi::default().state().map(|state| state.is_connected()).unwrap_or(false)
-                        })
-                        .await;
-                        if !connected {
-                            break;
-                        }
-                        sleep(std::time::Duration::from_millis(100)).await;
-                    }
+                    drop_companion_radio_link().await;
 
                     let view = ui.global::<State>();
                     view.set_bt_connected(false);
@@ -609,11 +660,7 @@ fn register_callbacks(ui: &AppWindow, state: &StoredValue<AppState>) {
                 let ui = ui.clone_strong();
                 let state = state.clone();
                 async move {
-                    match async_archive::<quantum_link_permissions::QuantumLinkPermissions, _>(
-                        UnpairFromEnvoy,
-                    )
-                    .await
-                    {
+                    match unpair_from_companion().await {
                         Ok(()) => {
                             state.borrow_mut().pending = None;
                             state.borrow_mut().settings.guard().setup_version = 0;
@@ -625,7 +672,7 @@ fn register_callbacks(ui: &AppWindow, state: &StoredValue<AppState>) {
                             view.set_page(PageId::Pairing);
                         }
                         Err(error) => {
-                            log::warn!("could not unpair Tether WDK phone: {error:?}");
+                            log::warn!("could not unpair companion phone: {error}");
                             ui.global::<State>().set_disconnecting(false);
                             show_error(&ui, tr::lookup_id(TrId::ErrorUnpair).to_owned());
                         }
@@ -745,6 +792,7 @@ fn register_callbacks(ui: &AppWindow, state: &StoredValue<AppState>) {
     });
 }
 
+#[cfg(feature = "quantum-link")]
 fn send_rejection(request_id: Vec<u8>, reason_code: u8, message: String) {
     if request_id.len() != 16 {
         return;

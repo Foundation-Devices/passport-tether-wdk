@@ -76,7 +76,7 @@ KeyOS revision so SDK drift cannot silently produce an unreviewed build.
 | Path | Purpose |
 | --- | --- |
 | [`mobile/`](mobile/) | Expo/React Native Android companion and native QuantumLink module |
-| [`prime-app/`](prime-app/) | Rust/Slint `gui-app-tether-wdk` source |
+| [`prime-app/`](prime-app/) | Standalone Foundation SDK app (Rust/Slint) |
 | [`foundation-api/`](foundation-api/) | Shared versioned QuantumLink WDK messages |
 | [`keyos-patches/`](keyos-patches/) | KeyOS workspace, launcher, and server integration |
 | [`scripts/`](scripts/) | Reproducible setup, verification, and build commands |
@@ -212,60 +212,43 @@ All overrides live in `mobile/.env.example`.
 
 ## Build the Passport Prime app
 
-For a hosted simulator bundle:
+The Prime app is a standalone Foundation SDK application. It does not need a
+KeyOS checkout: the SDK ships the KeyOS API crates it builds against.
+
+Requires Foundation SDK >= 1.0.0 and Nix.
 
 ```bash
-bash scripts/build_prime_app.sh ../KeyOS
+bash scripts/setup_sdk.sh          # links .sdk at the installed SDK
+cd prime-app
+foundation build                   # signed app bundle in target/keyos/
+foundation sideload                # copy to a connected Prime and launch
 ```
 
-For the production ARM target without signing:
+`foundation cert gen` creates your own publisher signing identity, so no
+Foundation-held key is needed. Sideloading needs the Passport unlocked and
+connected over USB, with Developer Mode on and Airlock in Read/Write.
 
-```bash
-cd ../KeyOS
-CARGO_PROFILE_RELEASE_INCREMENTAL=false \
-RUSTFLAGS='--cfg keyos -C relocation-model=pic -C link-arg=-pie' \
-  cargo build --profile release \
-  --target armv7a-unknown-xous-elf \
-  --package gui-app-tether-wdk
-```
+> [!IMPORTANT]
+> **This does not build yet.** The app's Slint UI is written against KeyOS
+> 1.3.0's internal widget set — `BasePage`, `QrCodeCard`, `AnimatedQrCode`,
+> `TimerCircularProgress`, `Importance`, `Palettes` — and SDK 1.0.0 exposes a
+> different component library under `@ui` (`accordion`, `button`, `card`,
+> `chip`, `dialog`, ...). `BasePage` does not exist in the SDK at all, so
+> `ui/app.slint` needs porting to the SDK components before `foundation build`
+> completes. Everything ahead of that step — permissions, signing config,
+> dependency resolution, icon and theme — is in place and verified.
 
-Output:
+The companion link to the Android app is compiled out of this build and sits
+behind the `quantum-link` feature. See [`docs/QUANTUM_LINK.md`](docs/QUANTUM_LINK.md)
+for why, and what has to be true to switch it back on.
 
-```text
-../KeyOS/target/armv7a-unknown-xous-elf/release/gui-app-tether-wdk
-```
+### The legacy firmware path
 
-For a complete developer firmware image:
-
-```bash
-bash scripts/build_prime_firmware.sh ../KeyOS
-```
-
-This requires `cosign2`, an authorized developer private key, and a
-`../KeyOS/cosign2.toml` signing profile. The script builds the bootloader and
-recovery image first, then stages the 16 valid KeyOS 1.3.0 filesystem apps
-(including Tether Wallet) before creating `../KeyOS/boot.img`. Recovery must be
-built before the normal app set because the recovery build clears the staged
-filesystem-app directory.
-
-Do not build a boot image from a single `--app gui-app-tether-wdk` invocation:
-that replaces KeyOS's standard filesystem app set and can leave the launcher
-without the apps required after PIN entry. Do not add
-`gui-app-emu-flux-server` to the KeyOS 1.3.0 build: it is not a member of the
-pinned Cargo workspace. App and firmware signing require
-Foundation-controlled developer credentials; the repository never contains
-the signing profile or private key.
-
-To flash an attached developer unit already in SAM-BA mode:
-
-```bash
-cd ../KeyOS
-cargo build --release --package passport-drive
-target/release/passport-drive samba flash boot.img
-```
-
-The flasher verifies the written bytes by default. Do not use `--no-verify` for
-a distributable or hardware-test image.
+Building a full firmware image still works and still requires a KeyOS checkout,
+the reviewed patches, and Foundation-held signing credentials. It is the only
+way to run the companion link today. See
+[`scripts/build_prime_firmware.sh`](scripts/build_prime_firmware.sh) and the
+KeyOS steps under *Clone and verify* above.
 
 ## Run the POC
 

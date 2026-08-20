@@ -1,18 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Foundation Devices, Inc. <hello@foundation.xyz>
 # SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Companion link over QuantumLink, for --features quantum-link.
+#
+# These Wdk* messages are NOT part of stock KeyOS; keyos-patches/ adds them.
+# Merge this block into permission_templates.toml and point app-config at it
+# when building that variant. See docs/QUANTUM_LINK.md.
 
-manifestVersion = "0"
-appId = "0x7465746865722d77646b2d7072696d65"
-
-[appName]
-en = "Tether Wallet"
-
-[appDescription]
-en = "Passport-secured Tether Wallet for Ethereum Sepolia and Bitcoin Testnet."
-
-[permissions]
-template = ["gui-app", "fs-generic"]
-"os/security" = ["GetAppSeed"]
+[companion-link]
 "os/bt" = ["EnableBle", "GetBtAddr", "GetState", "SubscribeBleState", "Disconnect"]
 "os/quantum-link" = [
     "GetXidDocument",

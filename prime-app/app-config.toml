@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Foundation Devices, Inc. <hello@foundation.xyz>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+app-name = "gui-app-tether-wdk"
+friendly-app-name = "Tether Wallet"
+launcher-app-name = "Tether Wallet"
+description = "Passport-secured Tether Wallet for Ethereum Sepolia and Bitcoin Testnet."
+icon = "resources/icon.png"
+theme = "resources/theme.json"
+
+# Frozen. KeyOS scopes GetAppSeed to the app id, so every key this wallet
+# derives depends on it. Changing the id derives a different wallet and
+# orphans any funded account.
+app-id = "0x7465746865722d77646b2d7072696d65"
+version = "0.1.0"
+min-keyos-version = "1.0.0"
+
+[publisher]
+name = "Foundation Devices"
+contact-email = "hello@foundation.xyz"
+support-url = "https://foundation.xyz"
+
+# `wallet` is the standalone surface. `companion-link` adds the QuantumLink
+# permissions and only resolves against a KeyOS carrying the WDK message set,
+# so it stays out of the default build. See docs/QUANTUM_LINK.md.
+[permissions]
+template = ["wallet"]

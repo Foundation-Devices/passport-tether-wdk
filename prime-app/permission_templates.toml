@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 Foundation Devices, Inc. <hello@foundation.xyz>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# A single template. The CLI rejects a permission set that names the same
+# server twice, and the SDK's stock 'gui-app' and 'fs-generic' bundles both
+# declare os/fs, so their union is spelled out here rather than composed.
+#
+# The companion-link permissions live in permission_templates.companion-link.toml
+# because they name QuantumLink messages that stock KeyOS does not define.
+
+[wallet]
+"os/fs" = [
+    "AsyncCopyBlock",
+    "AsyncRead",
+    "AsyncWrite",
+    "AtomicCopy",
+    "CloseDir",
+    "CloseFile",
+    "CreateDirMessage",
+    "Flush",
+    "GetMetadata",
+    "MapFileMessage",
+    "NextEntry",
+    "OpenDirMessage",
+    "OpenFileMessage",
+    "ReadFile",
+    "Remove",
+    "Rename",
+    "SeekFile",
+    "SetLen",
+    "SubscribeFilesystemEvent",
+    "TruncateFile",
+    "WriteFile",
+]
+"os/gui-server" = [
+    "AnimateNextFrame",
+    "HideKeyboard",
+    "RegisterAppMessage",
+    "RequestRedraw",
+    "ShowModal",
+    "SubmitFrame",
+    "UpdateKeyboard",
+]
+"os/security" = [
+    "GetAppSeed",
+]
+"os/settings" = [
+    "GetDebugTouch",
+    "GetSystemTheme",
+    "SubscribeDebugTouch",
+    "SubscribeSystemTheme",
+]

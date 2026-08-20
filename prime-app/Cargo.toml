@@ -8,25 +8,50 @@ edition = "2021"
 license = "GPL-3.0-or-later"
 publish = false
 
+# Standalone app project: it is built by the Foundation SDK, not as a member of
+# the KeyOS workspace. `sdk-keyos` is a gitignored symlink created by
+# scripts/setup_sdk.sh, which keeps these paths portable across machines and
+# SDK versions.
+[workspace]
+
+[features]
+default = []
+# Companion link over QuantumLink. Requires a KeyOS carrying the WDK message
+# set from keyos-patches/, which stock KeyOS does not have, so this is off by
+# default and the app builds and sideloads standalone. See docs/QUANTUM_LINK.md.
+quantum-link = []
+
 [dependencies]
-anyhow = { workspace = true }
-bitcoin = { version = "0.32.7", features = ["secp-recovery"] }
-bt = { workspace = true }
-fs = { workspace = true }
-hex = { workspace = true }
-log = { workspace = true }
-log-server = { workspace = true }
-quantum-link = { workspace = true }
-security = { workspace = true }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-server = { workspace = true }
-sha3 = "0.10.8"
-slint-keyos-platform = { path = "../../slint-keyos-platform/runtime" }
+anyhow = { version = "1", default-features = false }
+bitcoin = { version = "0.32.7", default-features = false, features = ["secp-recovery"] }
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
+log = "0.4"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+sha3 = { version = "0.10.8", default-features = false }
 zeroize = { version = "1", features = ["derive"] }
 
+# `bt` and `quantum-link` are deliberately absent rather than optional.
+#
+# The SDK's vendored workspace declares `gpio` at `api/gpio`, which no shipped
+# bundle contains, and `api/bt` depends on it -- as does `api/quantum-link`,
+# transitively. Cargo reads an optional dependency's manifest during
+# resolution, so declaring either as `optional = true` still fails to resolve
+# and breaks the default build.
+#
+# Restore both lines together with the `quantum-link` feature once a bundle
+# ships `api/gpio`. See docs/QUANTUM_LINK.md.
+#   bt = { path = "../.sdk/keyos/api/bt" }
+fs = { path = "../.sdk/keyos/api/fs" }
+security = { path = "../.sdk/keyos/api/security" }
+server = { path = "../.sdk/keyos/server" }
+log-server = { package = "xous-api-log", path = "../.sdk/keyos/xous/api/log" }
+slint-keyos-platform = { path = "../.sdk/keyos/slint-keyos-platform/runtime" }
+foundation-themes = { path = "../.sdk/keyos/sdk/crates/foundation-themes" }
+#   quantum-link = { path = "../.sdk/keyos/api/quantum-link" }
+
 [build-dependencies]
-slint-keyos-platform-build = { path = "../../slint-keyos-platform/build", default-features = false }
+slint-keyos-platform-build = { path = "../.sdk/keyos/slint-keyos-platform/build" }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(keyos)'] }
